@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VibeCode · 模拟与幻想实验室</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #050510;
+    --panel-bg: rgba(12, 12, 30, 0.94);
+    --border: rgba(255, 255, 255, 0.08);
+    --text: rgba(255, 255, 255, 0.88);
+    --text-dim: rgba(255, 255, 255, 0.45);
+    --text-faint: rgba(255, 255, 255, 0.22);
+    --accent-sim: rgba(130, 180, 240, 0.5);
+    --accent-fantasy: rgba(220, 180, 130, 0.5);
+    --hover: rgba(255, 255, 255, 0.08);
+    --active: rgba(100, 150, 220, 0.18);
+  }
+
+  body {
+    background: var(--bg);
+    font-family: 'Georgia', 'Times New Roman', serif;
+    overflow: hidden;
+    height: 100vh; height: 100dvh;
+    user-select: none; -webkit-user-select: none;
+  }
+
+  /* ═══════════ TOP BAR ═══════════ */
+  #topbar {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    height: 46px;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 16px;
+    background: var(--panel-bg);
+    border-bottom: 1px solid var(--border);
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    transition: transform 0.35s ease;
+  }
+  #topbar.hidden { transform: translateY(-100%); }
+
+  #top-hover-zone {
+    position: fixed; top: 0; left: 0; right: 0; height: 8px; z-index: 101;
+  }
+
+  #logo {
+    color: var(--text);
+    font-size: 1rem; letter-spacing: 0.12em;
+    display: flex; align-items: center; gap: 8px;
+  }
+  #logo-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: rgba(140, 200, 255, 0.7);
+    box-shadow: 0 0 8px rgba(140, 200, 255, 0.4);
+  }
+  #current-label {
+    color: var(--text-dim);
+    font-size: 0.62rem; letter-spacing: 0.08em;
+    margin-left: 4px;
+    transition: color 0.4s;
+  }
+  #current-label.sim { color: rgba(130, 180, 240, 0.55); }
+  #current-label.fantasy { color: rgba(220, 180, 130, 0.55); }
+
+  #top-actions {
+    display: flex; align-items: center; gap: 6px;
+  }
+
+  .top-btn {
+    width: 32px; height: 32px; border-radius: 6px;
+    border: 1px solid var(--border);
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--text-dim);
+    font-size: 0.85rem;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.25s;
+  }
+  .top-btn:hover {
+    background: var(--hover);
+    color: var(--text);
+    border-color: rgba(255, 255, 255, 0.2);
+  }
+  .top-btn.active {
+    background: var(--active);
+    color: #fff;
+    border-color: rgba(100, 150, 220, 0.3);
+    box-shadow: 0 0 12px rgba(100, 150, 220, 0.1);
+  }
+  #btn-menu { font-family: 'Georgia', serif; font-size: 1.1rem; line-height: 1; }
+
+  /* ═══════════ SIDEBAR MENU ═══════════ */
+  #sidebar {
+    position: fixed; top: 46px; left: 0; bottom: 0; z-index: 99;
+    width: 220px;
+    background: var(--panel-bg);
+    border-right: 1px solid var(--border);
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    transform: translateX(-100%);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    display: flex; flex-direction: column;
+    padding: 12px 0;
+    overflow-y: auto;
+  }
+  #sidebar.open { transform: translateX(0); }
+
+  .menu-section {
+    padding: 8px 16px 4px;
+    color: var(--text-faint);
+    font-size: 0.52rem; letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  .menu-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 16px;
+    margin: 0 8px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    color: var(--text-dim);
+    font-size: 0.72rem; letter-spacing: 0.06em;
+    border: 1px solid transparent;
+    position: relative;
+  }
+  .menu-item:hover {
+    background: var(--hover);
+    color: var(--text);
+    border-color: rgba(255, 255, 255, 0.06);
+  }
+  .menu-item.active {
+    background: var(--active);
+    color: #fff;
+    border-color: rgba(100, 150, 220, 0.25);
+    box-shadow: 0 0 14px rgba(100, 150, 220, 0.06);
+  }
+  .menu-item .dot {
+    width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
+  }
+  .menu-item .dot.sim { background: rgba(140, 200, 255, 0.6); }
+  .menu-item .dot.fantasy { background: rgba(255, 200, 120, 0.6); }
+  .menu-item .label { flex: 1; }
+  .menu-item .key-hint {
+    font-family: 'Courier New', monospace;
+    font-size: 0.5rem;
+    color: rgba(255, 255, 255, 0.18);
+  }
+
+  /* ═══════════ IFRAME CONTAINER ═══════════ */
+  #frame-container {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 1;
+  }
+  #frame-container.sidebar-open {
+    /* no shift — iframe stays fullscreen, sidebar overlays */
+  }
+
+  iframe.project-frame {
+    position: absolute; top: 0; left: 0;
+    width: 100%; height: 100%;
+    border: none;
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.4s ease;
+  }
+  iframe.project-frame.active {
+    opacity: 1; pointer-events: all;
+  }
+
+  /* ═══════════ FULLSCREEN OVERLAY ═══════════ */
+  #fs-hint {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+    z-index: 110; pointer-events: none;
+    color: rgba(255, 255, 255, 0.2);
+    font-size: 0.55rem; letter-spacing: 0.08em;
+    opacity: 0; transition: opacity 1.5s;
+  }
+  #fs-hint.show { opacity: 1; }
+
+  /* ═══════════ RESPONSIVE ═══════════ */
+  @media (max-width: 600px) {
+    #sidebar { width: 100%; }
+    #topbar { padding: 0 10px; height: 42px; }
+    #logo { font-size: 0.85rem; }
+    #current-label { display: none; }
+    .top-btn { width: 28px; height: 28px; font-size: 0.75rem; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══════════ TOP BAR ═══════════ -->
+<div id="topbar">
+  <div style="display:flex;align-items:center;gap:6px;">
+    <button class="top-btn" id="btn-menu" title="菜单 (M)">☰</button>
+    <span id="logo"><span id="logo-dot"></span>VibeCode</span>
+    <span id="current-label">宏观力学 · 星空</span>
+  </div>
+  <div id="top-actions">
+    <button class="top-btn" id="btn-prev" title="上一个 (←)">◂</button>
+    <button class="top-btn" id="btn-next" title="下一个 (→)">▸</button>
+    <button class="top-btn" id="btn-fullscreen" title="全屏 (F)">⛶</button>
+  </div>
+</div>
+<div id="top-hover-zone"></div>
+
+<!-- ═══════════ SIDEBAR ═══════════ -->
+<nav id="sidebar">
+  <div class="menu-section">模拟类 · 物理驱动</div>
+  <div class="menu-item active" data-index="0" data-cat="sim">
+    <span class="dot sim"></span>
+    <span class="label">宏观力学 · 星空模拟器</span>
+    <span class="key-hint">1</span>
+  </div>
+  <div class="menu-item" data-index="1" data-cat="sim">
+    <span class="dot sim"></span>
+    <span class="label">大洋之息 · 海洋生态</span>
+    <span class="key-hint">2</span>
+  </div>
+
+  <div class="menu-section">幻想类 · 涌现生成</div>
+  <div class="menu-item" data-index="2" data-cat="fantasy">
+    <span class="dot fantasy"></span>
+    <span class="label">The Dreaming Machine</span>
+    <span class="key-hint">3</span>
+  </div>
+  <div class="menu-item" data-index="3" data-cat="fantasy">
+    <span class="dot fantasy"></span>
+    <span class="label">The Latent Garden</span>
+    <span class="key-hint">4</span>
+  </div>
+</nav>
+
+<!-- ═══════════ IFRAMES ═══════════ -->
+<div id="frame-container">
+  <iframe class="project-frame active" src="celestial-mechanics.html"></iframe>
+  <iframe class="project-frame" src="oceanus.html"></iframe>
+  <iframe class="project-frame" src="dreaming-machine.html"></iframe>
+  <iframe class="project-frame" src="latent-garden.html"></iframe>
+</div>
+
+<div id="fs-hint">按 Esc 退出全屏</div>
+
+<script>
+(function() {
+  const projects = [
+    { name: '宏观力学 · 星空模拟器', file: 'celestial-mechanics.html', cat: 'sim' },
+    { name: '大洋之息 · 海洋生态',   file: 'oceanus.html',            cat: 'sim' },
+    { name: 'The Dreaming Machine', file: 'dreaming-machine.html',   cat: 'fantasy' },
+    { name: 'The Latent Garden',    file: 'latent-garden.html',      cat: 'fantasy' },
+  ];
+
+  let currentIndex = 0;
+  const frames = document.querySelectorAll('.project-frame');
+  const menuItems = document.querySelectorAll('.menu-item');
+  const sidebar = document.getElementById('sidebar');
+  const btnMenu = document.getElementById('btn-menu');
+  const currentLabel = document.getElementById('current-label');
+  const fsHint = document.getElementById('fs-hint');
+  let sidebarOpen = false;
+
+  // ── Switch project ──
+  function switchTo(index) {
+    if (index === currentIndex && frames[index].classList.contains('active')) return;
+    showTopbar();
+
+    frames[currentIndex].classList.remove('active');
+    frames[index].classList.add('active');
+
+    menuItems[currentIndex].classList.remove('active');
+    menuItems[index].classList.add('active');
+
+    currentIndex = index;
+    const p = projects[index];
+    currentLabel.textContent = p.name;
+    currentLabel.className = p.cat === 'sim' ? 'sim' : 'fantasy';
+  }
+
+  // ── Menu item clicks ──
+  menuItems.forEach(item => {
+    item.addEventListener('click', () => {
+      const idx = parseInt(item.dataset.index);
+      switchTo(idx);
+      closeSidebar();
+    });
+  });
+
+  // ── Sidebar ──
+  function openSidebar() {
+    sidebarOpen = true;
+    sidebar.classList.add('open');
+    btnMenu.classList.add('active');
+  }
+  function closeSidebar() {
+    sidebarOpen = false;
+    sidebar.classList.remove('open');
+    btnMenu.classList.remove('active');
+  }
+  function toggleSidebar() {
+    sidebarOpen ? closeSidebar() : openSidebar();
+  }
+
+  btnMenu.addEventListener('click', toggleSidebar);
+
+  // Click outside sidebar to close
+  document.addEventListener('click', (e) => {
+    if (sidebarOpen && !sidebar.contains(e.target) && e.target !== btnMenu) {
+      closeSidebar();
+    }
+  });
+
+  // ── Prev / Next ──
+  document.getElementById('btn-prev').addEventListener('click', () => {
+    const idx = (currentIndex - 1 + projects.length) % projects.length;
+    switchTo(idx);
+  });
+  document.getElementById('btn-next').addEventListener('click', () => {
+    const idx = (currentIndex + 1) % projects.length;
+    switchTo(idx);
+  });
+
+  // ── Fullscreen ──
+  function toggleFullscreen() {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().then(() => {
+        fsHint.classList.add('show');
+        setTimeout(() => fsHint.classList.remove('show'), 3000);
+      }).catch(() => {});
+    } else {
+      document.exitFullscreen();
+    }
+  }
+  document.getElementById('btn-fullscreen').addEventListener('click', toggleFullscreen);
+
+  document.addEventListener('fullscreenchange', () => {
+    const btn = document.getElementById('btn-fullscreen');
+    if (document.fullscreenElement) {
+      btn.classList.add('active');
+    } else {
+      btn.classList.remove('active');
+      fsHint.classList.remove('show');
+    }
+  });
+
+  // ── Auto-hide topbar ──
+  const topbar = document.getElementById('topbar');
+  const topHover = document.getElementById('top-hover-zone');
+  let hideTimer = null;
+
+  function showTopbar() {
+    topbar.classList.remove('hidden');
+    clearTimeout(hideTimer);
+    hideTimer = setTimeout(() => {
+      if (!sidebarOpen) topbar.classList.add('hidden');
+    }, 3000);
+  }
+  function hideTopbarNow() {
+    clearTimeout(hideTimer);
+    if (!sidebarOpen) topbar.classList.add('hidden');
+  }
+
+  topHover.addEventListener('mouseenter', showTopbar);
+  topbar.addEventListener('mouseenter', showTopbar);
+  topbar.addEventListener('mouseleave', () => {
+    clearTimeout(hideTimer);
+    hideTimer = setTimeout(() => {
+      if (!sidebarOpen) topbar.classList.add('hidden');
+    }, 1500);
+  });
+
+  // Initial auto-hide
+  hideTimer = setTimeout(() => topbar.classList.add('hidden'), 3000);
+
+  // ── Keyboard shortcuts ──
+  document.addEventListener('keydown', (e) => {
+    // Don't intercept when typing in inputs inside iframes
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+    switch (e.key.toLowerCase()) {
+      case 'm':
+        toggleSidebar();
+        break;
+      case 'escape':
+        if (sidebarOpen) { closeSidebar(); e.preventDefault(); }
+        break;
+      case 'f':
+        if (!e.ctrlKey && !e.metaKey) { toggleFullscreen(); e.preventDefault(); }
+        break;
+      case 'arrowleft':
+        if (!sidebarOpen) {
+          const pi = (currentIndex - 1 + projects.length) % projects.length;
+          switchTo(pi);
+        }
+        break;
+      case 'arrowright':
+        if (!sidebarOpen) {
+          const ni = (currentIndex + 1) % projects.length;
+          switchTo(ni);
+        }
+        break;
+      case '1': switchTo(0); closeSidebar(); break;
+      case '2': switchTo(1); closeSidebar(); break;
+      case '3': switchTo(2); closeSidebar(); break;
+      case '4': switchTo(3); closeSidebar(); break;
+    }
+  });
+
+  // ── Init ──
+  console.log('%c🌌 VibeCode %c模拟与幻想实验室',
+    'font-size:1.4em;color:#aaccff', 'color:#aaa;');
+  console.log('%cM 键菜单 · F 键全屏 · 1-4 切换 · ← → 前后',
+    'color:#666;');
+  console.log('%c模拟类: 星空 / 海洋 | 幻想类: 梦机 / 潜空间花园',
+    'color:#555;');
+})();
+</script>
+</body>
+</html>
