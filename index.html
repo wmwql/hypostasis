@@ -309,12 +309,6 @@
           e.preventDefault();
         }
         break;
-      case 'arrowleft':
-        if (!sidebarOpen) switchTo((currentIndex - 1 + projects.length) % projects.length);
-        break;
-      case 'arrowright':
-        if (!sidebarOpen) switchTo((currentIndex + 1) % projects.length);
-        break;
       case '1': switchTo(0); closeSidebar(); break;
       case '2': switchTo(1); closeSidebar(); break;
       case '3': switchTo(2); closeSidebar(); break;
