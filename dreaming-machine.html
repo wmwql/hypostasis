@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>The Dreaming Machine</title>
+<title>无尽梦机 · 活画布</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
@@ -33,29 +33,26 @@
     font-size: 0.75rem; letter-spacing: 0.2em;
     transition: opacity 2s;
   }
-  #modes {
-    display: flex; gap: 12px; pointer-events: all;
+  #scene-menu {
+    position: fixed; top: 180px; left: 18px; z-index: 15;
+    display: flex; flex-direction: column; gap: 4px;
+    pointer-events: all;
   }
   .mode-btn {
-    background: rgba(255,255,255,0.06);
-    border: 1px solid rgba(255,255,255,0.12);
-    color: rgba(255,255,255,0.55);
-    padding: 8px 18px; border-radius: 24px;
-    font-family: inherit; font-size: 0.78rem;
+    background: none; border: none;
+    color: rgba(255,255,255,0.2);
+    padding: 2px 0;
+    font-family: 'Georgia', serif;
+    font-size: 0.72rem;
     letter-spacing: 0.08em;
     cursor: pointer;
-    transition: all 0.4s;
+    transition: color 0.3s;
+    text-align: left;
   }
-  .mode-btn:hover {
-    background: rgba(255,255,255,0.12);
-    color: rgba(255,255,255,0.85);
-    border-color: rgba(255,255,255,0.25);
-  }
+  .mode-btn:hover { color: rgba(255,255,255,0.55); }
   .mode-btn.active {
-    background: rgba(255,255,255,0.15);
-    color: #fff;
-    border-color: rgba(255,255,255,0.4);
-    box-shadow: 0 0 20px rgba(255,255,255,0.08);
+    color: rgba(255,255,255,0.9);
+    text-shadow: 0 0 8px rgba(255,240,200,0.25);
   }
   #whisper-hint {
     color: rgba(255,255,255,0.25);
@@ -108,9 +105,9 @@
 </div>
 
 <div id="overlay">
-  <div id="title">The Dreaming Machine</div>
+  <div id="title">无尽梦机 · 活画布</div>
   <div id="subtitle">一幅永不重复的活画布</div>
-  <div id="modes">
+  <div id="scene-menu">
     <button class="mode-btn active" data-mode="auto">自动交融</button>
     <button class="mode-btn" data-mode="coral">珊瑚秘境</button>
     <button class="mode-btn" data-mode="storm">神经风暴</button>
@@ -990,7 +987,7 @@ for (let i = 0; i < 5; i++) {
 // 启动循环
 requestAnimationFrame(draw);
 
-console.log('%c🌊 The Dreaming Machine %c已苏醒。',
+console.log('%c🌊 无尽梦机 %c已苏醒。',
   'font-size:1.4em;color:#aaccff', 'color:#aaa;');
 console.log('%c一幅活画布：反应扩散 × 集群生命 × 流场粒子 共存共生。',
   'color:#888;font-style:italic');

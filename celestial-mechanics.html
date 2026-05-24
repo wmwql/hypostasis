@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>宏观力学 · 星空模拟器</title>
+<title>万象引力 · 星体模拟器</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
@@ -37,13 +37,12 @@
   /* Scene menu — minimal text labels */
   #scene-menu {
     position: fixed; top: 190px; left: 12px; z-index: 15;
-    display: flex; flex-direction: column; gap: 2px;
+    display: flex; flex-direction: column; gap: 3px;
     pointer-events: all;
     max-height: calc(100vh - 240px);
     overflow-y: auto;
-    padding-right: 4px;
+    padding: 18px 4px 18px 8px;
     border-left: 1px solid rgba(255,255,255,0.06);
-    padding-left: 8px;
   }
   #scene-menu::-webkit-scrollbar { width: 0; }
   #scene-menu::before, #scene-menu::after {
@@ -91,6 +90,39 @@
     pointer-events: none;
   }
 
+  /* Milestone panel */
+  #milestone-panel {
+    position: fixed; bottom: 430px; right: 8px; z-index: 12;
+    pointer-events: none;
+    display: flex; flex-direction: column; gap: 3px;
+  }
+  #milestone-title {
+    color: rgba(255,255,255,0.3);
+    font-size: 0.55rem; letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+  .milestone-line {
+    color: rgba(255,255,255,0.2);
+    font-family: 'Courier New', monospace;
+    font-size: 0.52rem;
+    letter-spacing: 0.03em;
+    transition: color 0.5s;
+    white-space: nowrap;
+  }
+  .milestone-line.done {
+    color: rgba(255,220,140,0.55);
+    text-decoration: line-through;
+    text-decoration-color: rgba(255,220,140,0.2);
+  }
+  .milestone-line.active {
+    color: rgba(255,255,255,0.65);
+  }
+  .milestone-progress {
+    color: rgba(255,255,255,0.25);
+    font-size: 0.45rem;
+    margin-left: 4px;
+  }
+
   #event-log {
     position: fixed; top: 108px; right: 24px; z-index: 10;
     display: flex; flex-direction: column; gap: 5px;
@@ -100,7 +132,7 @@
 
   /* Star placement grid — collapsible */
   #star-panel {
-    position: fixed; top: 200px; right: 8px; z-index: 15;
+    position: fixed; bottom: 80px; right: 8px; z-index: 15;
     pointer-events: all;
     background: rgba(10,10,25,0.88);
     border: 1px solid rgba(255,255,255,0.1);
@@ -345,11 +377,13 @@
 
     #ui { bottom: 20px; gap: 6px; }
     #hint { font-size: 0.62rem; text-align: center; max-width: 88vw; line-height: 1.5; }
-    #scene-menu { top: 160px; left: 4px; gap: 3px; }
+    #scene-menu { top: 155px; left: 4px; gap: 2px; padding: 16px 3px 16px 6px; }
     .mode-btn { padding: 0; font-size: 0.6rem; }
 
     #info { top: 12px; right: 12px; font-size: 0.6rem; line-height: 1.5; }
     #event-log { top: 82px; right: 12px; max-width: 220px; }
+    #milestone-panel { top: auto; bottom: 230px; right: 4px; }
+    .milestone-line { font-size: 0.45rem; }
     .event-line { font-size: 0.6rem; }
 
     #help-toggle { top: 12px; left: 10px; width: 28px; height: 28px; font-size: 0.8rem; }
@@ -365,7 +399,7 @@
   @media (max-width: 400px) {
     #title { font-size: 1rem; }
     #subtitle { font-size: 0.55rem; display: none; }
-    #scene-menu { top: 130px; left: 2px; gap: 2px; }
+    #scene-menu { top: 125px; left: 2px; gap: 2px; padding: 14px 2px 14px 5px; }
     .mode-btn { padding: 0; font-size: 0.52rem; }
     #hint { display: none; }
     #help-toggle { top: 8px; left: 6px; width: 26px; height: 26px; font-size: 0.75rem; }
@@ -381,7 +415,7 @@
 <canvas id="c"></canvas>
 
 <div id="ui">
-  <div id="title">宏观力学 · 星空</div>
+  <div id="title">万象引力 · 星体</div>
   <div id="subtitle">牛顿引力下的 N 体宇宙</div>
   <div id="hint">点击放置 · 拖拽弹射 · 右键消除 · <kbd>L</kbd> 双层空间 · <span style="color:rgba(255,255,255,0.5)">?</span> 操作</div>
 </div>
@@ -399,6 +433,12 @@
 
 <!-- Event log ─────────────────────────────── -->
 <div id="event-log"></div>
+
+<!-- Milestone timeline ────────────────────── -->
+<div id="milestone-panel">
+  <div id="milestone-title">里程碑</div>
+  <div id="milestone-list"></div>
+</div>
 
 <!-- Star placement panel ──────────────────── -->
 <div id="star-panel">
@@ -802,6 +842,47 @@ function randomStarName() {
   if (r < 0.8) return namePool.star[Math.random()*namePool.star.length|0] + '-' + (Math.random()*90+10|0);
   return 'HD-' + (Math.random()*90000+10000|0);
 }
+// ═══════════════════════════════════════════════════
+// 粒子系统 (纯视觉 — 不参与引力计算)
+// ═══════════════════════════════════════════════════
+class Particle {
+  constructor(x, y, vx, vy, life, color, size) {
+    this.x = x; this.y = y; this.vx = vx; this.vy = vy;
+    this.life = life; this.maxLife = life;
+    this.color = color; this.size = size || 0.006;
+  }
+  update(dt) { this.life -= dt; this.x += this.vx * dt; this.y += this.vy * dt; }
+  draw(ctx) {
+    const alpha = Math.max(0, this.life / this.maxLife);
+    const grad = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, this.size);
+    grad.addColorStop(0, `rgba(${this.color},${alpha})`);
+    grad.addColorStop(0.4, `rgba(${this.color},${alpha*0.6})`);
+    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI*2);
+    ctx.fillStyle = grad; ctx.fill();
+  }
+  get alive() { return this.life > 0; }
+}
+
+function spawnParticles(x, y, count, speed, life, color, size) {
+  for (let i = 0; i < count; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const spd = speed * (0.3 + Math.random() * 1.0);
+    particles.push(new Particle(x, y, Math.cos(angle)*spd, Math.sin(angle)*spd, life*(0.5+Math.random()*0.5), color, size));
+  }
+}
+function spawnParticlesDir(x, y, count, speed, life, color, size, nx, ny, bias) {
+  for (let i = 0; i < count; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const spd = speed * (0.3 + Math.random() * 1.0);
+    // Blend random direction with bias direction
+    const bx = Math.cos(angle)*(1-bias) + nx*bias;
+    const by = Math.sin(angle)*(1-bias) + ny*bias;
+    const bmag = Math.sqrt(bx*bx+by*by);
+    particles.push(new Particle(x, y, bx/bmag*spd, by/bmag*spd, life*(0.5+Math.random()*0.5), color, size));
+  }
+}
+
 class Body {
   constructor(x, y, vx, vy, mass, colorHint, name, isBlackHole) {
     this.x = x;
@@ -955,6 +1036,9 @@ function solveGravity(bodies) {
       const dy = other.y - b.y;
       const dist = Math.sqrt(dx * dx + dy * dy);
       const mergeDist = (b.radius + other.radius) * 0.85;
+      // Merge shield: don't merge event-protected bodies
+      const now = performance.now();
+      if ((b._shieldUntil && b._shieldUntil > now) || (other._shieldUntil && other._shieldUntil > now)) continue;
       if (dist < mergeDist) {
         const tm = b.mass + other.mass;
         b.x = (b.x * b.mass + other.x * other.mass) / tm;
@@ -967,7 +1051,28 @@ function solveGravity(bodies) {
         b.trail = [];
         b.ax = 0; b.ay = 0;
         other.alive = false;
-        emitEvent(`${b.name} 与 ${other.name} 融合 · 质量 ${b.mass.toFixed(1)}`);
+        // Compute relative speed at merge
+        const rdx = other.vx - b.vx, rdy = other.vy - b.vy;
+        const relSpeed = Math.sqrt(rdx*rdx + rdy*rdy);
+        const massRatio = b.mass / (other.mass || 0.001);
+        const minMass = Math.min(b.mass, other.mass);
+        const c = other.color || b.color;
+
+        // Tidal disruption: small body torn apart by large one
+        if (massRatio > 8 || (b.mass > 0 && other.mass > 0 && massRatio < 0.125)) {
+          spawnParticles(b.x, b.y, 25, relSpeed*0.4 + 1.5, 2.5, `${c.r},${c.g},${c.b}`, 0.008);
+          emitEvent(`${b.name} 与 ${other.name} 融合 · 潮汐撕裂碎片`);
+        }
+        // High-speed impact debris
+        else if (relSpeed > 3) {
+          spawnParticles(b.x, b.y, 20, relSpeed*0.5, 1.8, '255,200,100', 0.01);
+          emitEvent(`${b.name} 与 ${other.name} 撞击 · 质量 ${b.mass.toFixed(1)}`);
+        }
+        // Normal merger
+        else {
+          emitEvent(`${b.name} 与 ${other.name} 融合 · 质量 ${b.mass.toFixed(1)}`);
+        }
+
         // Gravitational wave chirp if massive merger
         if (tm > 3 && showRelativity) {
           gwChirp = { x: b.x, y: b.y, t0: performance.now()*0.001, mass: tm, active: true };
@@ -1134,271 +1239,302 @@ function computeEnergy(bodies) {
 }
 
 // ═══════════════════════════════════════════════════
-// 预设场景
+// 场景 JSON 定义
 // ═══════════════════════════════════════════════════
-function createPreset(mode) {
-  const CX = 0, CY = 0; // origin = Solar System barycenter
+const sceneDefs = {
+  solar: {
+    name:'太阳系', desc:'NASA 真实质量与轨道数据 · 1M☉·AU·year',
+    g:1, event:'太阳系 · 真实 NASA 数据',
+    bodies: [{ use:'catalog', filter:'ss' }],
+    events: [
+      { type:'time', at:1.0, msg:'🌍 地球完成第 1 圈公转 · 1 地球年' },
+      { type:'time', at:5.0, msg:'🌍 地球完成第 5 圈公转 · 5 年里程碑' },
+      { type:'time', at:11.86, msg:'♃ 木星完成第 1 圈公转 · 11.86 年' },
+    ]
+  },
+  binary: {
+    name:'双星共舞', desc:'两颗恒星在相互引力作用下跳着永恒的宇宙华尔兹',
+    g:1,
+    bodies: [
+      { type:'binary', m1:2.5, m2:1.8, sep:15, c1:{r:180,g:200,b:255}, c2:{r:255,g:180,b:100}, n1:'天狼A', n2:'天狼B' },
+      { type:'orbital', count:4, parent:'binary', dist:[30,50], mass:[0.05,0.15], vScale:[0.7,1.3] }
+    ]
+  },
+  cluster: {
+    name:'星团引力', desc:'密集星团中数十颗恒星在引力网中追逐——秩序与混沌的边缘',
+    g:1,
+    bodies: [
+      { type:'body', m:4, c:{r:200,g:210,b:255}, n:'星团核' },
+      { type:'orbital', count:25, parent:0, dist:[1.5,11.5], mass:[0.02,0.17], vScatter:0.25, vScale:[0.85,1.15] }
+    ]
+  },
+  spiral: {
+    name:'旋涡星系', desc:'旋涡星系——引力编织的宇宙螺旋',
+    g:1,
+    bodies: [
+      { type:'body', m:6, c:{r:255,g:240,b:200}, n:'银心' },
+      { type:'spiral', arms:3, perArm:8, dist:[2.5,14.5], parent:0, mass:[0.02,0.1], vScale:0.9 }
+    ]
+  },
+  collision: {
+    name:'星系对撞', desc:'两个星团以 4 AU/yr 迎头相撞——宇宙中最狂暴的引力之舞',
+    g:1, event:'星系对撞 · 两个星团迎头相撞',
+    bodies: [
+      { type:'colliding-cluster', cx:-10, vx:4, n:'星系A核', mass:3, count:12, c:{r:180,g:200,b:255} },
+      { type:'colliding-cluster', cx:10, vx:-4, n:'星系B核', mass:3, count:12, c:{r:255,g:180,b:140} }
+    ],
+    events: [
+      { type:'proximity', a:'星系A核', b:'星系B核', dist:3, once:true, msg:'⚡ 星系核心进入引力束缚区 · 距离 3 AU' },
+      { type:'proximity', a:'星系A核', b:'星系B核', dist:0.5, once:true, msg:'💥 星系核心剧烈碰撞！引力波爆发' },
+    ]
+  },
+  chaos: {
+    name:'自由混沌', desc:'没有中心引力的自由天体——纯粹的 N 体混沌舞蹈',
+    g:1,
+    bodies: [
+      { type:'scatter', count:30, pos:[-8,8], vel:[-4,4], mass:[0.01,2] }
+    ]
+  },
+  tatooine: {
+    name:'塔图因双星', desc:'塔图因 · 环双星行星——星球大战中卢克仰望的两次日落',
+    g:1, event:'塔图因 · 双星日落 — 星球大战',
+    bodies: [
+      { type:'binary', m1:1.2, m2:0.9, sep:8, c1:{r:255,g:220,b:100}, c2:{r:255,g:140,b:60}, n1:'塔图I', n2:'塔图II' },
+      { type:'orbital', count:1, parent:'binary', dist:[24,24], mass:[3e-6,3e-6], fixedAngle:true, name:'塔图因', color:{r:80,g:160,b:240} }
+    ]
+  },
+  roche: {
+    name:'潮汐撕裂', desc:'罗希极限 · 卫星越过潮汐瓦解半径被行星引力撕碎',
+    g:1, event:'罗希极限 · 卫星正坠入潮汐瓦解区',
+    bodies: [
+      { type:'body', m:1.5, c:{r:255,g:200,b:100}, n:'木星' },
+      { type:'orbital', count:1, parent:0, dist:[2,2], mass:[5e-5,5e-5], vScale:[0.85,0.85], fixedAngle:true, name:'卫星', color:{r:180,g:180,b:200} }
+    ],
+    events: [
+      { type:'proximity', a:'卫星', b:'木星', dist:0.8, once:true, msg:'⚠ 卫星越过罗希极限 · 潮汐力开始撕裂星体' },
+      { type:'proximity', a:'卫星', b:'木星', dist:0.3, once:true, msg:'💫 卫星完全瓦解 · 碎片坠入行星大气' },
+    ]
+  },
+  impact: {
+    name:'天地撞击', desc:'天地大冲撞 · 彗星直扑地球——Deep Impact',
+    g:1, event:'天地大冲撞 · 彗星以 5 AU/yr 直扑地球',
+    bodies: [
+      { type:'body', m:0.8, c:{r:80,g:150,b:240}, n:'地球' },
+      // Comet aimed directly at origin, minimal scatter
+      { type:'aimed', dist:8, speed:5, scatter:0.02, mass:1e-5, c:{r:200,g:220,b:240}, n:'彗星' }
+    ],
+    events: [
+      { type:'proximity', a:'彗星', b:'地球', dist:1.5, once:true, msg:'☄ 彗星进入地球引力范围 · 即将撞击！' },
+      { type:'proximity', a:'彗星', b:'地球', dist:0.3, once:true,
+        spawn:{ count:30, speed:3, life:2, color:'255,200,100', size:0.015 },
+        msg:'💥 撞击！碎片云以 3 AU/yr 扩散' }
+    ]
+  },
+  wanderer: {
+    name:'流浪地球', desc:'流浪地球 · 太阳系真实轨道 · 地球从后方接近木星 · 点燃大气',
+    g:1, event:'流浪地球 · 地球发动机停机，正从后方接近木星...',
+    bodies: [
+      // Sun at origin — proper solar system
+      { type:'body', m:1.0, c:{r:255,g:245,b:200}, n:'日' },
+      // Jupiter at 5.2 AU, circular CCW: v_circ = √(39.478/5.2) = 2.76 AU/yr
+      { type:'body', x:5.2, y:0, vx:0, vy:2.76, m:0.06, c:{r:210,g:175,b:120}, n:'木星' },
+      // Earth close behind Jupiter — aimed to pass within 0.1 AU
+      { type:'body', x:4.7, y:-0.35, vx:0.5, vy:3.0, m:3e-6, c:{r:80,g:150,b:240}, n:'地球' }
+    ],
+    events: [
+      { type:'proximity', a:'地球', b:'木星', dist:0.30, once:true, msg:'🌍 地球进入木星引力井 · 发动机全部停机' },
+      { type:'proximity', a:'地球', b:'木星', dist:0.10, once:true,
+        spawn:{ count:60, speed:6, life:3.5, color:'255,180,40', size:0.018, from:'b' },
+        spawn2:{ count:40, speed:4, life:2.5, color:'255,100,20', size:0.022, from:'b' },
+        kick:{ target:'a', speed:6, from:'b' },
+        msg:'🔥 点燃木星！爆炸+引力弹弓 · 地球沿弧线飞出' },
+      { type:'proximity', a:'地球', b:'木星', dist:1.8, once:true, afterEvent:1,
+        kick:{ target:'a', speed:3.5, prograde:true },
+        msg:'🚀 发动机重启！地球全速飞出太阳系' }
+    ]
+  },
+  threebody: {
+    name:'三体问题', desc:'三体问题的拉格朗日等边三角形解——确定性中的不可预测性',
+    g:1.5,
+    bodies: [
+      { type:'threebody', mass:[0.8,2.0], radius:[3,6],
+        colors:[{r:255,g:100,b:70},{r:90,g:200,b:255},{r:100,g:255,b:140}],
+        names:['α','β','γ'] }
+    ]
+  },
+  blackhole: {
+    name:'银心黑洞', desc:'天鹅 X-1 恒星级黑洞与绕行伴星——2020 诺贝尔物理学奖',
+    g:1, event:'天鹅 X-1 恒星级黑洞 · 2020 诺贝尔物理学奖',
+    bodies: [
+      { type:'body', m:20, bh:true, n:'天鹅 X-1' },
+      { type:'elliptical', count:1, parent:0, a:2.0, e:0.70, mass:0.8, name:'HDE 226868', color:{r:180,g:200,b:240} },
+      { type:'elliptical', count:1, parent:0, a:4.5, e:0.50, mass:0.5, name:'S0-2', color:{r:220,g:210,b:180} },
+      { type:'elliptical', count:1, parent:0, a:7.0, e:0.35, mass:0.3, name:'S0-8', color:{r:240,g:180,b:140} },
+      { type:'elliptical', count:1, parent:0, a:9.5, e:0.25, mass:0.2, name:'S0-13', color:{r:180,g:220,b:200} }
+    ]
+  }
+};
+
+// ═══════════════════════════════════════════════════
+// 场景解释器
+// ═══════════════════════════════════════════════════
+const CX = 0, CY = 0;
+const R = (a,b) => a + Math.random()*(b-a); // random in range
+
+function buildScene(scene) {
   const bodies = [];
+  const def = sceneDefs[scene];
+  if (!def) return bodies;
 
-  switch (mode) {
-    case 'solar': {
-      G = G0; document.getElementById('g-slider').value = G;
-      // All from bodyTypes catalog
-      const ssBodies = bodyTypes.filter(b => b.cat === 'ss' && b.orbit !== undefined);
-      for (const bt of ssBodies) {
-        const angle = Math.random() * Math.PI * 2;
-        const dist = bt.orbit;
-        const px = Math.cos(angle) * dist;
-        const py = Math.sin(angle) * dist;
-        const vCirc = dist > 0 ? Math.sqrt(G * 1.0 / dist) : 0;
-        const isBH = bt.isBH || false;
-        bodies.push(new Body(px, py, -Math.sin(angle)*vCirc, Math.cos(angle)*vCirc, bt.mass, bt.color, bt.name, isBH));
-      }
-      emitEvent('太阳系 · 真实 NASA 数据 · 1M☉·AU·year');
-      break;
-    }
+  G = G0 * (def.g || 1);
+  document.getElementById('g-slider').value = G;
+  if (def.event) emitEvent(def.event);
 
-    case 'binary': {
-      G = G0; document.getElementById('g-slider').value = G;
-      const separation = 15; // AU
-      const mass1 = 2.5, mass2 = 1.8; // M☉ (Sirius-like)
-      const totalMass = mass1 + mass2;
-      const r1 = separation * mass2 / totalMass;
-      const r2 = separation * mass1 / totalMass;
-      const vCirc1 = Math.sqrt(G * mass2 * mass2 / (separation * totalMass));
-      const vCirc2 = Math.sqrt(G * mass1 * mass1 / (separation * totalMass));
+  let parentBodies = []; // track binary centers and parent bodies
 
-      bodies.push(new Body(CX - r1, CY, 0, vCirc1, mass1, { r: 180, g: 200, b: 255 }, '天狼A'));
-      bodies.push(new Body(CX + r2, CY, 0, -vCirc2, mass2, { r: 255, g: 180, b: 100 }, '天狼B'));
+  for (const spec of def.bodies) {
+    const idx = bodies.length; // index of next body (used as parent ref)
 
-      for (let i = 0; i < 4; i++) {
-        const angle = Math.random() * Math.PI * 2;
-        const dist = separation * 2 + Math.random() * 20;
-        const px = CX + Math.cos(angle) * dist;
-        const py = CY + Math.sin(angle) * dist;
-        const vCirc = Math.sqrt(G * totalMass / dist) * (0.7 + Math.random() * 0.6);
-        bodies.push(new Body(px, py, -Math.sin(angle)*vCirc, Math.cos(angle)*vCirc, 0.05 + Math.random()*0.1));
-      }
-      break;
-    }
-
-    case 'cluster': {
-      G = G0; document.getElementById('g-slider').value = G;
-      const cMass = 4; // M☉
-      bodies.push(new Body(CX, CY, 0, 0, cMass, { r: 200, g: 210, b: 255 }, '星团核'));
-      for (let i = 0; i < 25; i++) {
+    if (spec.use === 'catalog') {
+      const catBodies = bodyTypes.filter(b => b.cat === (spec.filter||'ss') && b.orbit !== undefined);
+      for (const bt of catBodies) {
         const angle = Math.random()*Math.PI*2;
-        const dist = 1.5 + Math.random()*10;
-        const px = CX + Math.cos(angle)*dist;
-        const py = CY + Math.sin(angle)*dist;
-        const vCirc = Math.sqrt(G*cMass/dist);
-        const vAngle = angle + Math.PI/2 + (Math.random()-0.5)*0.25;
-        bodies.push(new Body(px, py, Math.cos(vAngle)*vCirc, Math.sin(vAngle)*vCirc, 0.02+Math.random()*0.15));
+        const dist = bt.orbit, vCirc = dist>0 ? Math.sqrt(G*1.0/dist) : 0;
+        bodies.push(new Body(Math.cos(angle)*dist, Math.sin(angle)*dist,
+          -Math.sin(angle)*vCirc, Math.cos(angle)*vCirc, bt.mass, bt.color, bt.name, bt.isBH));
       }
-      break;
+      continue;
     }
 
-    case 'spiral': {
-      G = G0; document.getElementById('g-slider').value = G;
-      const gMass = 6;
-      bodies.push(new Body(CX, CY, 0, 0, gMass, { r: 255, g: 240, b: 200 }, '银心'));
-      const arms = 3, perArm = 8;
-      for (let arm = 0; arm < arms; arm++) {
-        const armAngle = (arm/arms)*Math.PI*2;
-        for (let i = 0; i < perArm; i++) {
-          const dist = 2.5 + (i/perArm)*12;
-          const angle = armAngle + (i/perArm)*Math.PI*1.6 + (Math.random()-0.5)*0.3;
-          const px = CX + Math.cos(angle)*dist;
-          const py = CY + Math.sin(angle)*dist;
-          const vCirc = Math.sqrt(G*gMass/dist);
-          bodies.push(new Body(px, py, -Math.sin(angle)*vCirc*0.9, Math.cos(angle)*vCirc*0.9, 0.02+Math.random()*0.08));
+    if (spec.type === 'body') {
+      const bx = spec.x !== undefined ? spec.x : CX;
+      const by = spec.y !== undefined ? spec.y : CY;
+      const bvx = spec.vx || 0, bvy = spec.vy || 0;
+      bodies.push(new Body(bx, by, bvx, bvy, spec.m, spec.c||null, spec.n||undefined, spec.bh||false));
+      continue;
+    }
+
+    if (spec.type === 'binary') {
+      const {m1,m2,sep,c1,c2,n1,n2} = spec;
+      const tm = m1+m2, r1=sep*m2/tm, r2=sep*m1/tm;
+      const v1=Math.sqrt(G*m2*m2/(sep*tm)), v2=Math.sqrt(G*m1*m1/(sep*tm));
+      bodies.push(new Body(CX-r1, CY, 0, v1, m1, c1, n1));
+      bodies.push(new Body(CX+r2, CY, 0, -v2, m2, c2, n2));
+      parentBodies.push({ idx, type:'binary', totalMass:tm, cx:CX, cy:CY });
+      continue;
+    }
+
+    if (spec.type === 'orbital') {
+      const parent = spec.parent;
+      let pMass, pCX=CX, pCY=CY;
+      if (parent === 'binary') {
+        const pb = parentBodies[parentBodies.length-1];
+        pMass = pb.totalMass; pCX = pb.cx; pCY = pb.cy;
+      } else if (typeof parent === 'number') {
+        pMass = bodies[parent].mass; pCX = bodies[parent].x; pCY = bodies[parent].y;
+      } else { pMass = 1.0; }
+
+      for (let i=0; i<(spec.count||1); i++) {
+        const angle = spec.fixedAngle !== undefined ? spec.fixedAngle : Math.random()*Math.PI*2;
+        const dist = R(spec.dist[0], spec.dist[1]);
+        const vCirc = Math.sqrt(G*pMass/dist);
+        const vScale = spec.vScale ? R(spec.vScale[0], spec.vScale[1]) : 1;
+        const vScatter = spec.vScatter || 0;
+        const vAngle = angle + Math.PI/2 + (Math.random()-0.5)*vScatter;
+        const vMag = vCirc * vScale;
+        const mass = spec.mass ? R(spec.mass[0], spec.mass[1]) : 0.1;
+        const name = spec.name || (spec.names ? spec.names[i] : undefined);
+        const color = spec.color || undefined;
+        bodies.push(new Body(pCX+Math.cos(angle)*dist, pCY+Math.sin(angle)*dist,
+          Math.cos(vAngle)*vMag, Math.sin(vAngle)*vMag, mass, color, name));
+      }
+      continue;
+    }
+
+    if (spec.type === 'aimed') {
+      const off = (Math.random()-0.5)*spec.scatter*2;
+      const dist = spec.dist, speed = spec.speed;
+      const px = CX + dist, py = CY + off;
+      const aim = Math.atan2(CY-py, CX-px) + (Math.random()-0.5)*spec.scatter;
+      bodies.push(new Body(px, py, Math.cos(aim)*speed, Math.sin(aim)*speed, spec.mass, spec.c, spec.n));
+      continue;
+    }
+
+    if (spec.type === 'scatter') {
+      for (let i=0; i<spec.count; i++) {
+        const px = R(spec.pos[0], spec.pos[1]), py = R(spec.pos[0], spec.pos[1]);
+        const vx = R(spec.vel[0], spec.vel[1]), vy = R(spec.vel[0], spec.vel[1]);
+        const mass = R(spec.mass[0], spec.mass[1]);
+        bodies.push(new Body(px, py, vx, vy, mass));
+      }
+      continue;
+    }
+
+    if (spec.type === 'spiral') {
+      const pMass = bodies[spec.parent].mass;
+      for (let arm=0; arm<spec.arms; arm++) {
+        const armAngle = (arm/spec.arms)*Math.PI*2;
+        for (let i=0; i<spec.perArm; i++) {
+          const dist = spec.dist[0] + (i/spec.perArm)*(spec.dist[1]-spec.dist[0]);
+          const angle = armAngle + (i/spec.perArm)*Math.PI*1.6 + (Math.random()-0.5)*0.3;
+          const vCirc = Math.sqrt(G*pMass/dist) * (spec.vScale||1);
+          const mass = R(spec.mass[0], spec.mass[1]);
+          bodies.push(new Body(CX+Math.cos(angle)*dist, CY+Math.sin(angle)*dist,
+            -Math.sin(angle)*vCirc, Math.cos(angle)*vCirc, mass));
         }
       }
-      break;
+      continue;
     }
 
-    case 'collision': {
-      // Galaxy collision — two clusters on a collision course
-      G = G0; document.getElementById('g-slider').value = G;
-      const sep = 10; // AU separation from origin
-      const bulkSpeed = 4; // AU/year approach speed
-      const clustMass = 3;
-      const colors1 = { r: 180, g: 200, b: 255 };
-      const colors2 = { r: 255, g: 180, b: 140 };
-
-      // Cluster 1 — coming from left
-      bodies.push(new Body(CX - sep, CY, bulkSpeed, 0, clustMass, colors1, '星系A核'));
-      for (let i = 0; i < 12; i++) {
+    if (spec.type === 'colliding-cluster') {
+      const {cx, vx, n, mass, count, c} = spec;
+      bodies.push(new Body(cx, CY, vx, 0, mass, c, n));
+      for (let i=0; i<count; i++) {
         const angle = Math.random()*Math.PI*2;
         const dist = 0.8 + Math.random()*4;
-        const px = CX - sep + Math.cos(angle)*dist;
-        const py = CY + Math.sin(angle)*dist;
-        const vCirc = Math.sqrt(G*clustMass/dist);
-        bodies.push(new Body(px, py, bulkSpeed - Math.sin(angle)*vCirc, Math.cos(angle)*vCirc, 0.03+Math.random()*0.1, colors1));
+        const vCirc = Math.sqrt(G*mass/dist);
+        bodies.push(new Body(cx+Math.cos(angle)*dist, CY+Math.sin(angle)*dist,
+          vx - Math.sin(angle)*vCirc, Math.cos(angle)*vCirc, 0.03+Math.random()*0.1, c));
       }
-
-      // Cluster 2 — coming from right
-      bodies.push(new Body(CX + sep, CY, -bulkSpeed, 0, clustMass, colors2, '星系B核'));
-      for (let i = 0; i < 12; i++) {
-        const angle = Math.random()*Math.PI*2;
-        const dist = 0.8 + Math.random()*4;
-        const px = CX + sep + Math.cos(angle)*dist;
-        const py = CY + Math.sin(angle)*dist;
-        const vCirc = Math.sqrt(G*clustMass/dist);
-        bodies.push(new Body(px, py, -bulkSpeed - Math.sin(angle)*vCirc, Math.cos(angle)*vCirc, 0.03+Math.random()*0.1, colors2));
-      }
-      emitEvent('星系对撞 · 两个星团迎头相撞');
-      break;
+      continue;
     }
 
-    case 'chaos': {
-      G = G0; document.getElementById('g-slider').value = G;
-      for (let i = 0; i < 30; i++) {
-        const px = (Math.random() - 0.5) * 16; // AU
-        const py = (Math.random() - 0.5) * 16;
-        const vx = (Math.random() - 0.5) * 8;
-        const vy = (Math.random() - 0.5) * 8;
-        bodies.push(new Body(px, py, vx, vy, 0.01 + Math.random()*2));
-      }
-      break;
+    if (spec.type === 'elliptical') {
+      const parent = bodies[spec.parent];
+      const angle = Math.random()*Math.PI*2;
+      const r = spec.a*(1-spec.e*spec.e)/(1+spec.e*Math.cos(angle));
+      const speed = Math.sqrt(G*parent.mass*(2/r - 1/spec.a));
+      const vAngle = angle + Math.PI/2;
+      bodies.push(new Body(parent.x+Math.cos(angle)*r, parent.y+Math.sin(angle)*r,
+        -Math.sin(vAngle)*speed, Math.cos(vAngle)*speed, spec.mass, spec.color, spec.name));
+      continue;
     }
 
-    // ── Movie & classic physics scenes ──────────
-
-    case 'tatooine': {
-      // Tatooine — circumbinary planet (Star Wars)
-      G = G0; document.getElementById('g-slider').value = G;
-      const sep = 8; const m1=1.2, m2=0.9; const mTot=m1+m2;
-      const r1=sep*m2/mTot, r2=sep*m1/mTot;
-      const v1=Math.sqrt(G*m2*m2/(sep*mTot)), v2=Math.sqrt(G*m1*m1/(sep*mTot));
-      bodies.push(new Body(CX-r1, CY, 0, v1, m1, {r:255,g:220,b:100}, '塔图I'));
-      bodies.push(new Body(CX+r2, CY, 0, -v2, m2, {r:255,g:140,b:60}, '塔图II'));
-      // Circumbinary planet at 3× separation (stable zone)
-      const pDist = sep*3, pAngle = Math.random()*Math.PI*2;
-      const pv = Math.sqrt(G*mTot/pDist);
-      bodies.push(new Body(CX+Math.cos(pAngle)*pDist, CY+Math.sin(pAngle)*pDist,
-        -Math.sin(pAngle)*pv, Math.cos(pAngle)*pv, 3e-6, {r:80,g:160,b:240}, '塔图因'));
-      emitEvent('塔图因 · 双星日落 — 星球大战');
-      break;
-    }
-
-    case 'roche': {
-      // Roche limit — tidal disruption
-      G = G0; document.getElementById('g-slider').value = G;
-      const pMass=1.5, pDist=5;
-      bodies.push(new Body(CX, CY, 0, 0, pMass, {r:255,g:200,b:100}, '木星'));
-      // Moon approaching within Roche limit
-      const moonAngle = Math.random()*Math.PI*2;
-      const moonDist = pDist*0.4; // inside Roche radius
-      const moonV = Math.sqrt(G*pMass/moonDist)*0.85; // slightly sub-orbital → inspirals
-      bodies.push(new Body(
-        CX+Math.cos(moonAngle)*moonDist, CY+Math.sin(moonAngle)*moonDist,
-        -Math.sin(moonAngle)*moonV, Math.cos(moonAngle)*moonV,
-        5e-5, {r:180,g:180,b:200}, '卫星'));
-      emitEvent('罗希极限 · 卫星正坠入潮汐瓦解区');
-      break;
-    }
-
-    case 'impact': {
-      // Deep Impact / Armageddon — comet on collision course
-      G = G0; document.getElementById('g-slider').value = G;
-      bodies.push(new Body(CX, CY, 0, 0, 0.8, {r:80,g:150,b:240}, '地球'));
-      // Comet coming from far away, aimed near center
-      const impAngle = (Math.random()-0.5)*0.3;
-      const impDist = 14;
-      const impSpeed = 7; // fast!
-      bodies.push(new Body(
-        CX-Math.cos(impAngle)*impDist, CY-Math.sin(impAngle)*impDist,
-        Math.cos(impAngle)*impSpeed, Math.sin(impAngle)*impSpeed,
-        1e-5, {r:200,g:220,b:240}, '彗星'));
-      emitEvent('天地大冲撞 · 彗星以 7 AU/yr 袭来');
-      break;
-    }
-
-    case 'wanderer': {
-      // The Wandering Earth — star system at high velocity
-      G = G0; document.getElementById('g-slider').value = G;
-      const bulkVx = 6, bulkVy = 2;
-      bodies.push(new Body(CX-8, CY-3, bulkVx, bulkVy, 0.9, {r:255,g:240,b:180}, '流浪星'));
-      for (let i=0; i<5; i++) {
-        const angle = Math.random()*Math.PI*2;
-        const dist = 1+Math.random()*4;
-        const vCirc = Math.sqrt(G*0.9/dist);
-        const px = CX-8+Math.cos(angle)*dist;
-        const py = CY-3+Math.sin(angle)*dist;
-        bodies.push(new Body(px, py, bulkVx-Math.sin(angle)*vCirc, bulkVy+Math.cos(angle)*vCirc, 1e-5, {r:200,g:180,b:140}));
-      }
-      emitEvent('流浪星 · 一颗恒星携行星系统高速穿越星际空间');
-      break;
-    }
-
-    case 'threebody': {
-      G = G0 * 1.5; document.getElementById('g-slider').value = G;
-      const S = 3 + Math.random() * 3; // AU triangle radius
-      const mass = 0.8 + Math.random() * 1.2; // M☉
-      // v² = G·m / L where L = √3·S (side length of equilateral triangle)
-      const vOrb = Math.sqrt(G * mass / (1.732 * S));
-      const rot0 = Math.random() * Math.PI * 2;
-      const perturb = (Math.random() - 0.5) * 0.015;
-
-      const configs = [
-        { r: 255, g: 100, b: 70, name: 'α' },
-        { r: 90, g: 200, b: 255, name: 'β' },
-        { r: 100, g: 255, b: 140, name: 'γ' },
-      ];
-
+    if (spec.type === 'threebody') {
+      const S = R(spec.radius[0], spec.radius[1]);
+      const mass = R(spec.mass[0], spec.mass[1]);
+      const vOrb = Math.sqrt(G*mass/(1.732*S));
+      const rot0 = Math.random()*Math.PI*2;
       const variant = Math.random();
+
       if (variant < 0.5) {
-        // Equilateral triangle (Lagrange)
-        for (let i = 0; i < 3; i++) {
-          const angle = rot0 + (i / 3) * Math.PI * 2 + (Math.random()-0.5)*perturb;
-          const px = CX+ Math.cos(angle) * S;
-          const py = CY + Math.sin(angle) * S;
-          const vx = -Math.sin(angle) * vOrb;
-          const vy = Math.cos(angle) * vOrb;
-          bodies.push(new Body(px, py, vx, vy, mass, configs[i], configs[i].name));
+        for (let i=0; i<3; i++) {
+          const angle = rot0 + (i/3)*Math.PI*2 + (Math.random()-0.5)*0.015;
+          bodies.push(new Body(CX+Math.cos(angle)*S, CY+Math.sin(angle)*S,
+            -Math.sin(angle)*vOrb, Math.cos(angle)*vOrb, mass, spec.colors[i], spec.names[i]));
         }
         emitEvent('三体 · 拉格朗日等边三角形 — 混沌边缘');
       } else {
-        // Random close triangle — immediate chaos
-        for (let i = 0; i < 3; i++) {
-          const angle = rot0 + (i / 3) * Math.PI * 2 + (Math.random()-0.5)*0.6;
-          const dist = S * (0.7 + Math.random() * 0.6);
-          const px = CX+ Math.cos(angle) * dist;
-          const py = CY + Math.sin(angle) * dist;
-          const vx = (Math.random() - 0.5) * vOrb * 2;
-          const vy = (Math.random() - 0.5) * vOrb * 2;
-          bodies.push(new Body(px, py, vx, vy, mass, configs[i], configs[i].name));
+        for (let i=0; i<3; i++) {
+          const angle = rot0 + (i/3)*Math.PI*2 + (Math.random()-0.5)*0.6;
+          const dist = S*(0.7+Math.random()*0.6);
+          const vx = (Math.random()-0.5)*vOrb*2;
+          const vy = (Math.random()-0.5)*vOrb*2;
+          bodies.push(new Body(CX+Math.cos(angle)*dist, CY+Math.sin(angle)*dist, vx, vy, mass, spec.colors[i], spec.names[i]));
         }
         emitEvent('三体 · 混沌初值 — 不可预测的舞蹈');
       }
-      break;
-    }
-
-    case 'blackhole': {
-      G = G0; document.getElementById('g-slider').value = G;
-      const bhMass = 20; // M☉ stellar-mass black hole
-      bodies.push(new Body(CX, CY, 0, 0, bhMass, null, '天鹅 X-1', true));
-
-      // Companion stars in elliptical orbits
-      const stars = [
-        { a: 2.0, e: 0.70, mass: 0.8, name: 'HDE 226868', color: { r: 180, g: 200, b: 240 } },
-        { a: 4.5, e: 0.50, mass: 0.5, name: 'S0-2',       color: { r: 220, g: 210, b: 180 } },
-        { a: 7.0, e: 0.35, mass: 0.3, name: 'S0-8',       color: { r: 240, g: 180, b: 140 } },
-        { a: 9.5, e: 0.25, mass: 0.2, name: 'S0-13',      color: { r: 180, g: 220, b: 200 } },
-      ];
-
-      for (const s of stars) {
-        const angle = Math.random() * Math.PI * 2;
-        const r = s.a * (1 - s.e*s.e) / (1 + s.e * Math.cos(angle));
-        const px = CX + Math.cos(angle) * r;
-        const py = CY + Math.sin(angle) * r;
-        const speed = Math.sqrt(G * bhMass * (2/r - 1/s.a));
-        const vAngle = angle + Math.PI/2;
-        bodies.push(new Body(px, py, -Math.sin(vAngle)*speed, Math.cos(vAngle)*speed, s.mass, s.color, s.name));
-      }
-      emitEvent('天鹅 X-1 恒星级黑洞 · 2020 诺贝尔物理学奖');
-      break;
+      continue;
     }
   }
 
@@ -1415,7 +1551,9 @@ let starfield = new Starfield(400);
 let currentMode = 'solar';
 let simYears = 0;                              // elapsed simulation time
 let selectedStarType = null;
-let gwChirp = null; // gravitational wave chirp state {x, y, t0, mass, active}
+let particles = [];
+let firedEvents = {}; // track once-only event IDs
+let gwChirp = null;
 
 // ── Unified body type catalog — single source of truth ──
 const bodyTypes = [
@@ -1453,22 +1591,6 @@ let pinchDist0 = 0;
 let pinchZoom0 = 1;
 let pinchCamX0 = 0, pinchCamY0 = 0;
 let pinchMidX = 0, pinchMidY = 0;
-
-// ── Scene descriptions ──────────────────────────
-const sceneDescriptions = {
-  solar: 'NASA 真实质量与轨道数据 · 太阳=200 模拟单位 · 1AU=45px · 行星半径仅增强可视性',
-  binary: '两颗恒星在相互引力作用下跳着永恒的宇宙华尔兹',
-  cluster: '密集星团中数十颗恒星在引力网中追逐——秩序与混沌的边缘',
-  spiral: '旋涡星系——引力编织的宇宙螺旋',
-  collision: '两个星团以 4 AU/yr 迎头相撞——宇宙中最狂暴的引力之舞',
-  chaos: '没有中心引力的自由天体——纯粹的 N 体混沌舞蹈',
-  threebody: '三体问题的拉格朗日等边三角形解——确定性中的不可预测性',
-  blackhole: 'Sgr A* 银心超大质量黑洞与绕行 S 星——2020 诺贝尔物理学奖',
-  tatooine: '塔图因 · 环双星行星——星球大战中卢克仰望的两次日落',
-  roche: '罗希极限 · 卫星越过潮汐瓦解半径被行星引力撕碎',
-  impact: '天地大冲撞 · 彗星以 7 AU/yr 直扑行星——Deep Impact',
-  wanderer: '流浪星 · 一颗恒星携行星系统高速穿越星际空间——流浪地球',
-};
 
 // ── Event notification system ───────────────────
 const EVENT_DURATION = 5000; // ms each event stays visible
@@ -1698,6 +1820,85 @@ function loop(timestamp) {
     lastFpsUpdate = timestamp;
   }
 
+  // ── Scene event checker (BEFORE physics — prevents merge eating events) ──
+  const scene = sceneDefs[currentMode];
+  if (scene && scene.events) {
+    for (let ei = 0; ei < scene.events.length; ei++) {
+      const ev = scene.events[ei];
+      const evId = `${currentMode}_${ei}`;
+      if (ev.once && firedEvents[evId]) continue;
+      // afterEvent: only fire if referenced event index has already fired
+      if (ev.afterEvent !== undefined && !firedEvents[`${currentMode}_${ev.afterEvent}`]) continue;
+      if (ev.type === 'proximity') {
+        const bodyA = bodies.find(b2 => b2.name === ev.a);
+        const bodyB = bodies.find(b2 => b2.name === ev.b);
+        if (bodyA && bodyB) {
+          const dx = bodyA.x - bodyB.x, dy = bodyA.y - bodyB.y;
+          const curDist = Math.sqrt(dx*dx + dy*dy);
+          if (curDist < ev.dist) {
+            if (ev.once) firedEvents[evId] = true;
+            // Auto-shield: prevent merge for 3 seconds after any proximity event
+            bodyA._shieldUntil = performance.now() + 3000;
+            bodyB._shieldUntil = performance.now() + 3000;
+            if (ev.spawn) {
+              const sx = bodyA.x, sy = bodyA.y;
+              if (ev.spawn.from) {
+                // Directional: bias particles away from the specified body
+                const ref = ev.spawn.from === 'b' ? bodyB : bodyA;
+                const bdx = sx - ref.x, bdy = sy - ref.y;
+                const bdist = Math.sqrt(bdx*bdx+bdy*bdy)+0.001;
+                const bnx = bdx/bdist, bny = bdy/bdist;
+                spawnParticlesDir(sx, sy, ev.spawn.count, ev.spawn.speed, ev.spawn.life, ev.spawn.color, ev.spawn.size, bnx, bny, 0.6);
+              } else {
+                spawnParticles(sx, sy, ev.spawn.count, ev.spawn.speed, ev.spawn.life, ev.spawn.color, ev.spawn.size);
+              }
+            }
+            if (ev.spawn2) {
+              const sx = bodyA.x, sy = bodyA.y;
+              if (ev.spawn2.from) {
+                const ref = ev.spawn2.from === 'b' ? bodyB : bodyA;
+                const bdx = sx - ref.x, bdy = sy - ref.y;
+                const bdist = Math.sqrt(bdx*bdx+bdy*bdy)+0.001;
+                const bnx = bdx/bdist, bny = bdy/bdist;
+                spawnParticlesDir(sx, sy, ev.spawn2.count, ev.spawn2.speed, ev.spawn2.life, ev.spawn2.color, ev.spawn2.size, bnx, bny, 0.6);
+              } else {
+                spawnParticles(sx, sy, ev.spawn2.count, ev.spawn2.speed, ev.spawn2.life, ev.spawn2.color, ev.spawn2.size);
+              }
+            }
+            if (ev.kick) {
+              const target = ev.kick.target === 'a' ? bodyA : bodyB;
+              const from = ev.kick.target === 'a' ? bodyB : bodyA;
+              if (ev.kick.prograde) {
+                // Kick along target's current velocity (engine thrust)
+                const vMag = Math.sqrt(target.vx*target.vx + target.vy*target.vy) + 0.001;
+                target.vx += (target.vx/vMag) * ev.kick.speed;
+                target.vy += (target.vy/vMag) * ev.kick.speed;
+              } else {
+                const kdx = target.x - from.x, kdy = target.y - from.y;
+                const kdist = Math.sqrt(kdx*kdx + kdy*kdy) + 0.001;
+                const rnx = kdx/kdist, rny = kdy/kdist;
+                const tx = -rny, ty = rnx; // tangential CCW
+                target.vx += rnx * ev.kick.speed * 0.3 + tx * ev.kick.speed * 0.7;
+                target.vy += rny * ev.kick.speed * 0.3 + ty * ev.kick.speed * 0.7;
+              }
+              target._shieldUntil = performance.now() + 2000;
+              if (from._shieldUntil === undefined || from._shieldUntil < target._shieldUntil) from._shieldUntil = target._shieldUntil;
+            }
+            if (ev.msg) emitEvent(ev.msg);
+          }
+        }
+      }
+      if (ev.type === 'time' && simYears >= ev.at && !firedEvents[evId]) {
+        if (ev.once !== false) firedEvents[evId] = true;
+        if (ev.msg) emitEvent(ev.msg);
+        if (ev.spawn && ev.atBody) {
+          const target = bodies.find(b2 => b2.name === ev.atBody);
+          if (target) spawnParticles(target.x, target.y, ev.spawn.count, ev.spawn.speed, ev.spawn.life, ev.spawn.color, ev.spawn.size);
+        }
+      }
+    }
+  }
+
   // Physics
   if (bodies.length > 0) {
     solveGravity(bodies);
@@ -1735,6 +1936,9 @@ function loop(timestamp) {
     for (const b of bodies) {
       b.draw(ctx);
     }
+
+    // Particles (world space)
+    for (const p of particles) p.draw(ctx);
 
     // ── Gravitational wave chirp visualization ──
     if (gwChirp && gwChirp.active) {
@@ -1946,6 +2150,13 @@ function loop(timestamp) {
     ctx.fill();
   }
 
+  // ── Particle update ──────────────────────────
+  const pdt = DT_BASE * simSpeed;
+  for (let i = particles.length - 1; i >= 0; i--) {
+    particles[i].update(pdt);
+    if (!particles[i].alive) particles.splice(i, 1);
+  }
+
   // ── UI Update ───────────────────────────────
   simYears += DT_BASE * simSpeed;
   const energy = computeEnergy(bodies);
@@ -1953,6 +2164,38 @@ function loop(timestamp) {
   document.getElementById('body-count').textContent = `天体 ${bodies.length}`;
   document.getElementById('energy').textContent =
     `${simYears.toFixed(2)} 年 · 动能 ${energy.kinetic.toFixed(1)} · 势能 ${Math.abs(energy.potential).toFixed(1)}`;
+
+  // ── Milestone panel update ────────────────────
+  const mScene = sceneDefs[currentMode];
+  const mList = document.getElementById('milestone-list');
+  if (mScene && mScene.events && mScene.events.length > 0) {
+    document.getElementById('milestone-panel').style.display = '';
+    let html = '';
+    for (let ei = 0; ei < mScene.events.length; ei++) {
+      const ev = mScene.events[ei];
+      const evId = `${currentMode}_${ei}`;
+      const done = !!firedEvents[evId];
+      let progress = '';
+      if (!done && ev.type === 'time') {
+        progress = ` <span class="milestone-progress">${(simYears/ev.at*100).toFixed(0)}%</span>`;
+      }
+      if (!done && ev.type === 'proximity') {
+        const a = bodies.find(b2 => b2.name === ev.a);
+        const b = bodies.find(b2 => b2.name === ev.b);
+        if (a && b) {
+          const curDist = Math.sqrt((a.x-b.x)**2 + (a.y-b.y)**2);
+          const pct = Math.max(0, Math.min(100, ((ev.dist*3 - curDist)/(ev.dist*2)*100)));
+          progress = ` <span class="milestone-progress">${curDist.toFixed(1)}/${ev.dist} AU</span>`;
+        }
+      }
+      const cls = done ? 'milestone-line done' : 'milestone-line';
+      const prefix = done ? '✓ ' : '○ ';
+      html += `<div class="${cls}">${prefix}${ev.msg || ev.type}${progress}</div>`;
+    }
+    mList.innerHTML = html;
+  } else {
+    document.getElementById('milestone-panel').style.display = 'none';
+  }
 }
 
 // ═══════════════════════════════════════════════════
@@ -2272,10 +2515,12 @@ document.querySelectorAll('.mode-btn').forEach(btn => {
     currentMode = btn.dataset.mode;
     resetCamera();
     simYears = 0;
-    bodies = createPreset(currentMode);
+    particles = [];
+    firedEvents = {};
+    bodies = buildScene(currentMode);
     fieldGrid.vertices = null;
     // Show scene description
-    const desc = sceneDescriptions[currentMode];
+    const desc = sceneDefs[currentMode]?.desc;
     if (desc) {
       const subEl = document.getElementById('subtitle');
       subEl.textContent = desc;
@@ -2350,10 +2595,11 @@ window.addEventListener('keydown', (e) => {
       break;
     case 'c':
       bodies = [];
+      particles = [];
       fieldGrid.vertices = null;
       break;
     case 'r':
-      bodies = createPreset(currentMode);
+      bodies = buildScene(currentMode);
       fieldGrid.vertices = null;
       break;
     case '1': document.querySelector('[data-mode="solar"]').click(); break;
@@ -2365,6 +2611,7 @@ window.addEventListener('keydown', (e) => {
     case '7': document.querySelector('[data-mode="blackhole"]').click(); break;
     case '8': document.querySelector('[data-mode="collision"]').click(); break;
     case '9': document.querySelector('[data-mode="tatooine"]').click(); break;
+    case '0': document.querySelector('[data-mode="jupiter-ignite"]').click(); break;
     case 'l':
       setLayerMode(layerMode === 'manifest' ? 'structure' : 'manifest');
       break;
@@ -2375,9 +2622,9 @@ window.addEventListener('keydown', (e) => {
 // 初始化
 // ═══════════════════════════════════════════════════
 resetCamera();
-bodies = createPreset('solar');
+bodies = buildScene('solar');
 // Show initial scene description
-const initDesc = sceneDescriptions['solar'];
+const initDesc = sceneDefs.solar?.desc;
 if (initDesc) {
   const subEl = document.getElementById('subtitle');
   subEl.textContent = initDesc;
