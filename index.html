@@ -194,17 +194,25 @@
   <div class="menu-item active" data-index="0" data-cat="sim">
     <span class="dot sim"></span><span class="label">万象引力 · 星体模拟器</span><span class="key-hint">1</span>
   </div>
-  <div class="menu-section">幻想类 · 涌现生成</div>
-  <div class="menu-item" data-index="1" data-cat="fantasy">
-    <span class="dot fantasy"></span><span class="label">The Dreaming Machine</span><span class="key-hint">2</span>
+  <div class="menu-item" data-index="1" data-cat="sim">
+    <span class="dot sim"></span><span class="label">维度阶梯 · 高维投影</span><span class="key-hint">2</span>
   </div>
-  <div class="menu-item" data-index="2" data-cat="fantasy">
-    <span class="dot fantasy"></span><span class="label">The Latent Garden</span><span class="key-hint">3</span>
+  <div class="menu-item" data-index="2" data-cat="sim">
+    <span class="dot sim"></span><span class="label">大洋之息 · 海洋生态模拟器</span><span class="key-hint">3</span>
+  </div>
+  <div class="menu-section">幻想类 · 涌现生成</div>
+  <div class="menu-item" data-index="3" data-cat="fantasy">
+    <span class="dot fantasy"></span><span class="label">The Dreaming Machine</span><span class="key-hint">4</span>
+  </div>
+  <div class="menu-item" data-index="4" data-cat="fantasy">
+    <span class="dot fantasy"></span><span class="label">The Latent Garden</span><span class="key-hint">5</span>
   </div>
 </nav>
 
 <div id="frame-container">
   <iframe class="project-frame active" src="celestial-mechanics.html"></iframe>
+  <iframe class="project-frame" src="dimensional-ladder.html"></iframe>
+  <iframe class="project-frame" src="oceanus.html"></iframe>
   <iframe class="project-frame" src="dreaming-machine.html"></iframe>
   <iframe class="project-frame" src="latent-garden.html"></iframe>
 </div>
@@ -215,6 +223,8 @@
 (function() {
   var projects = [
     { name: '万象引力 · 星体模拟器', cat: 'sim' },
+    { name: '维度阶梯 · 高维投影', cat: 'sim' },
+    { name: '大洋之息 · 海洋生态模拟器', cat: 'sim' },
     { name: 'The Dreaming Machine', cat: 'fantasy' },
     { name: 'The Latent Garden', cat: 'fantasy' },
   ];
@@ -312,6 +322,8 @@
       case '1': switchTo(0); closeSidebar(); break;
       case '2': switchTo(1); closeSidebar(); break;
       case '3': switchTo(2); closeSidebar(); break;
+      case '4': switchTo(3); closeSidebar(); break;
+      case '5': switchTo(4); closeSidebar(); break;
     }
   });
 

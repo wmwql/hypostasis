@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>维度阶梯 · the dimensional ladder</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #050510; overflow: hidden; font-family: 'Georgia', serif; cursor: crosshair; user-select: none; -webkit-user-select: none; touch-action: manipulation; }
+  canvas { display: block; position: fixed; top: 0; left: 0; z-index: 1; touch-action: none; }
+  #ui { position: fixed; z-index: 10; bottom: 36px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 10px; pointer-events: none; }
+  #title { color: rgba(255,255,255,0.88); font-size: 1.5rem; letter-spacing: 0.15em; text-shadow: 0 0 40px rgba(180,160,255,0.3); }
+  #subtitle { color: rgba(255,255,255,0.4); font-size: 0.7rem; letter-spacing: 0.2em; }
+  #scene-menu { position: fixed; top: 170px; left: 12px; z-index: 15; display: flex; flex-direction: column; gap: 3px; pointer-events: all; max-height: calc(100vh - 220px); overflow-y: auto; padding: 18px 4px 18px 8px; border-left: 1px solid rgba(255,255,255,0.06); }
+  #scene-menu::-webkit-scrollbar { width: 0; }
+  .mode-btn { background: none; border: none; color: rgba(255,255,255,0.22); padding: 2px 0; font-family: 'Georgia', serif; font-size: 0.72rem; letter-spacing: 0.08em; cursor: pointer; transition: color 0.3s; text-align: left; }
+  .mode-btn:hover { color: rgba(255,255,255,0.55); }
+  .mode-btn.active { color: rgba(255,255,255,0.9); text-shadow: 0 0 8px rgba(180,160,255,0.25); }
+  #info { position: fixed; top: 24px; right: 24px; z-index: 10; color: rgba(255,255,255,0.35); font-size: 0.7rem; letter-spacing: 0.06em; text-align: right; line-height: 1.8; font-family: 'Courier New', monospace; pointer-events: none; }
+  #layer-indicator { position: fixed; top: 24px; left: 50%; transform: translateX(-50%); z-index: 15; pointer-events: none; display: flex; align-items: center; gap: 10px; opacity: 0; transition: opacity 0.35s; }
+  #layer-indicator.visible { opacity: 1; }
+  #layer-indicator .layer-dot { width: 8px; height: 8px; border-radius: 50%; transition: all 0.4s; }
+  #layer-indicator .layer-label { color: rgba(255,255,255,0.55); font-size: 0.68rem; letter-spacing: 0.1em; font-family: 'Georgia', serif; }
+  #layer-indicator .layer-label.structure { color: rgba(255,180,100,0.7); }
+  #help-toggle { position: fixed; top: 20px; left: 24px; z-index: 20; width: 32px; height: 32px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.2); background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.45); font-size: 0.9rem; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.35s; pointer-events: all; font-family: 'Georgia', serif; line-height: 1; }
+  #help-toggle:hover, #help-toggle.open { background: rgba(255,255,255,0.14); color: #fff; border-color: rgba(255,255,255,0.4); box-shadow: 0 0 18px rgba(180,160,255,0.1); }
+  #help-panel { position: fixed; top: 54px; left: 24px; z-index: 19; background: rgba(12,12,30,0.92); border: 1px solid rgba(255,255,255,0.12); border-radius: 10px; padding: 16px 18px; display: flex; flex-direction: column; gap: 14px; min-width: 260px; max-width: 320px; opacity: 0; visibility: hidden; transform: translateY(-8px); transition: all 0.3s; pointer-events: none; backdrop-filter: blur(12px); max-height: calc(100vh - 80px); overflow-y: auto; }
+  #help-panel::-webkit-scrollbar { width: 0; }
+  #help-panel.visible { opacity: 1; visibility: visible; transform: translateY(0); pointer-events: all; }
+  #help-title { color: rgba(255,255,255,0.75); font-size: 0.8rem; letter-spacing: 0.12em; padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.08); }
+  .help-section { display: flex; flex-direction: column; gap: 5px; }
+  .help-label { color: rgba(255,255,255,0.35); font-size: 0.6rem; letter-spacing: 0.08em; text-transform: uppercase; }
+  .help-row { color: rgba(255,255,255,0.5); font-size: 0.68rem; letter-spacing: 0.05em; display: flex; align-items: center; gap: 6px; }
+  .help-ref { color: rgba(255,255,255,0.4); font-size: 0.62rem; letter-spacing: 0.04em; line-height: 1.5; }
+  kbd { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); border-radius: 3px; padding: 1px 6px; font-family: 'Courier New', monospace; font-size: 0.65rem; color: rgba(255,255,255,0.65); }
+  .ctrl-btn { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12); color: rgba(255,255,255,0.5); padding: 5px 12px; border-radius: 12px; font-family: inherit; font-size: 0.68rem; letter-spacing: 0.06em; cursor: pointer; transition: all 0.3s; }
+  .ctrl-btn.on { background: rgba(160,140,255,0.18); color: rgba(255,255,255,0.8); border-color: rgba(160,140,255,0.4); box-shadow: 0 0 12px rgba(160,140,255,0.1); }
+  #toggle-bar { position: fixed; top: 24px; right: 24px; z-index: 15; display: flex; gap: 6px; pointer-events: all; }
+  #dim-nav { position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%); z-index: 15; display: flex; align-items: center; gap: 14px; pointer-events: all; }
+  #dim-nav button { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); color: rgba(255,255,255,0.5); width: 28px; height: 28px; border-radius: 50%; font-family: 'Georgia', serif; font-size: 1rem; cursor: pointer; transition: all 0.3s; display: flex; align-items: center; justify-content: center; }
+  #dim-nav button:hover { background: rgba(255,255,255,0.14); color: #fff; border-color: rgba(255,255,255,0.4); }
+  #dim-display { color: rgba(255,255,255,0.6); font-size: 0.75rem; letter-spacing: 0.12em; font-family: 'Georgia', serif; min-width: 60px; text-align: center; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="ui"><div id="title">维度阶梯</div><div id="subtitle">the dimensional ladder · n = 4</div></div>
+<div id="layer-indicator"><div class="layer-dot" id="layer-dot"></div><span class="layer-label" id="layer-label">表象</span></div>
+<div id="info"><div id="fps">FPS: --</div><div id="vc-info">顶点: --</div><div id="ec-info">边: --</div><div id="schlafli">Schläfli: --</div></div>
+<div id="toggle-bar">
+  <button class="ctrl-btn" id="btn-trails">T 轨迹</button>
+  <button class="ctrl-btn on" id="btn-autorot">R 自旋</button>
+</div>
+<div id="scene-menu">
+  <button class="mode-btn" data-dim="0">0D · 点</button>
+  <button class="mode-btn" data-dim="1">1D · 线段</button>
+  <button class="mode-btn" data-dim="2">2D · 正方形</button>
+  <button class="mode-btn" data-dim="3">3D · 立方体</button>
+  <button class="mode-btn active" data-dim="4">4D · 超立方体</button>
+  <button class="mode-btn" data-dim="5">5D · 五维超立方</button>
+  <button class="mode-btn" data-dim="6">6D · 六维超立方</button>
+  <button class="mode-btn" data-dim="7">7D · 七维超立方</button>
+  <button class="mode-btn" data-dim="8">8D · 八维超立方</button>
+</div>
+<div id="dim-nav">
+  <button id="btn-dim-down">−</button>
+  <span id="dim-display">n = 4</span>
+  <button id="btn-dim-up">+</button>
+</div>
+<div id="help-toggle">?</div>
+<div id="help-panel">
+  <div id="help-title">维度阶梯 · 操作</div>
+  <div class="help-section"><div class="help-label">键盘</div>
+    <div class="help-row"><kbd>↑</kbd><kbd>↓</kbd> 或 <kbd>+</kbd><kbd>-</kbd> 升降维度</div>
+    <div class="help-row"><kbd>0</kbd>-<kbd>8</kbd> 直达维度</div>
+    <div class="help-row"><kbd>L</kbd> 表象/结构层 <kbd>Space</kbd> 暂停</div>
+    <div class="help-row"><kbd>T</kbd> 顶点轨迹 <kbd>R</kbd> 自旋</div>
+  </div>
+  <div class="help-section"><div class="help-label">鼠标</div>
+    <div class="help-row">拖拽旋转 · 滚轮缩放 · 双击复位</div>
+  </div>
+  <div class="help-section"><div class="help-label">参考文献</div>
+    <div class="help-ref">E. A. Abbott, <i>Flatland</i> (1884) — 维度类比的经典寓言</div>
+    <div class="help-ref">H. S. M. Coxeter, <i>Regular Polytopes</i> (1973) — 高维正多胞体的标准参考</div>
+    <div class="help-ref">T. Banchoff, <i>Beyond the Third Dimension</i> (1990) — 高维几何的可视化方法</div>
+    <div class="help-ref">R. Rucker, <i>The Fourth Dimension</i> (1984) — 第四维度的直观探索</div>
+    <div class="help-ref">H. P. Manning, <i>Geometry of Four Dimensions</i> (1914) — 四维几何的系统论述</div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+// 维度阶梯 · n 维超立方体旋转投影
+// ═══════════════════════════════════════════════════════════════
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+// ── 状态 ────────────────────────────────────────────────────
+let n = 4;                        // 当前维度
+let vertices = [], edges = [];     // 几何数据
+let phases = [];                   // 各旋转平面相位
+let paused = false, showStruct = false;
+let showTrails = false, autoRotate = true;
+let zoom = 1, tz = 1;             // 缩放
+let manualRX = 0, manualRY = 0;   // 手动旋转角
+let trailHistory = [];             // 顶点轨迹
+
+// ── 颜色映射 ────────────────────────────────────────────────
+const edgeHues = [0, 30, 55, 120, 200, 280, 320, 30, 180, 260]; // 每维度色相
+
+function resize() {
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = window.innerWidth * dpr;
+  canvas.height = window.innerHeight * dpr;
+  canvas.style.width = window.innerWidth + 'px';
+  canvas.style.height = window.innerHeight + 'px';
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.scale(dpr, dpr);
+}
+window.addEventListener('resize', resize);
+resize();
+
+// ── 生成 n 维超立方体 ──────────────────────────────────────
+function buildGeometry(dim) {
+  if (dim === 0) {
+    vertices = [[0, 0, 0]];
+    edges = [];
+    return;
+  }
+  const vc = 1 << dim;
+  vertices = [];
+  for (let i = 0; i < vc; i++) {
+    const v = [];
+    for (let j = 0; j < dim; j++) v.push((i >> j) & 1 ? 1 : -1);
+    // 嵌入至少 3 维
+    while (v.length < 3) v.push(0);
+    vertices.push(v);
+  }
+  edges = [];
+  for (let i = 0; i < vc; i++) {
+    for (let j = 0; j < dim; j++) {
+      const nb = i ^ (1 << j);
+      if (nb > i) edges.push([i, nb, j]);
+    }
+  }
+}
+
+function init(dim) {
+  n = dim;
+  buildGeometry(dim);
+  phases = new Array(Math.max(1, dim)).fill(0);
+  trailHistory = [];
+  updateUI();
+}
+
+// ── n 维旋转 ────────────────────────────────────────────────
+function rotateVertices(dt) {
+  const wv = vertices.map(v => [...v]);
+
+  // 自旋：在连续维度平面中旋转
+  if (autoRotate && !paused) {
+    const baseSpeed = 0.7;
+    for (let i = 0; i < Math.max(2, n - 1); i++) {
+      const d1 = i, d2 = i + 1;
+      const speed = baseSpeed / (1 + i * 0.35);
+      phases[i] = (phases[i] || 0) + speed * dt;
+      applyPlaneRotation(wv, d1, d2, phases[i]);
+    }
+    // 对更高维度添加跨平面旋转
+    if (n >= 4) {
+      for (let i = 2; i < n - 1; i += 2) {
+        const speed = baseSpeed / (1 + i * 0.5);
+        phases[n - 1 + i] = (phases[n - 1 + i] || 0) + speed * 0.6 * dt;
+        applyPlaneRotation(wv, 0, i + 1, phases[n - 1 + i]);
+      }
+    }
+  }
+
+  // 手动旋转（鼠标拖拽累积）
+  if (Math.abs(manualRX) > 0.0001 || Math.abs(manualRY) > 0.0001) {
+    applyPlaneRotation(wv, 0, 1, manualRX);
+    const d2 = n >= 3 ? 2 : 1;
+    applyPlaneRotation(wv, 0, d2, manualRY);
+    manualRX *= 0.92; manualRY *= 0.92;
+    if (Math.abs(manualRX) < 0.0001) manualRX = 0;
+    if (Math.abs(manualRY) < 0.0001) manualRY = 0;
+  }
+
+  return wv;
+}
+
+function applyPlaneRotation(wv, d1, d2, angle) {
+  const cos = Math.cos(angle), sin = Math.sin(angle);
+  for (const v of wv) {
+    const x = v[d1] || 0, y = v[d2] || 0;
+    v[d1] = x * cos - y * sin;
+    v[d2] = x * sin + y * cos;
+  }
+}
+
+// ── 递归透视投影 nD → 2D ──────────────────────────────────
+function project(v) {
+  const viewerDist = Math.sqrt(Math.max(1, n)) + 2.8;
+  let c = [...v];
+
+  // 递归投影到 3D
+  while (c.length > 3) {
+    const last = c[c.length - 1];
+    const w = viewerDist - last;
+    const s = viewerDist / Math.max(0.01, w);
+    for (let i = 0; i < c.length - 1; i++) c[i] *= s;
+    c.pop();
+  }
+
+  // 确保 3 分量
+  while (c.length < 3) c.push(0);
+  const depth = c[2];
+
+  // 3D → 2D 透视
+  const w3 = viewerDist - depth;
+  const s3 = viewerDist / Math.max(0.01, w3);
+
+  return { x: c[0] * s3, y: c[1] * s3, depth };
+}
+
+// ── 渲染 ────────────────────────────────────────────────────
+let fu = 0, ft = 0, fa = 0, fv = 0;
+
+function render(rdt) {
+  const W = window.innerWidth, H = window.innerHeight;
+  ctx.clearRect(0, 0, W, H);
+
+  // 背景星场
+  if (!showStruct) {
+    ctx.fillStyle = 'rgba(120,130,180,0.03)';
+    for (let i = 0; i < 60; i++) {
+      const sx = (i * 137.5 + i * i * 53) % W;
+      const sy = (i * 73.1 + i * i * 29) % H;
+      ctx.fillRect(sx, sy, 1, 1);
+    }
+  }
+
+  // 中心微光
+  const cg = ctx.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, Math.min(W, H) * 0.45);
+  cg.addColorStop(0, 'rgba(60,50,100,0.08)');
+  cg.addColorStop(0.5, 'rgba(30,25,60,0.04)');
+  cg.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = cg;
+  ctx.fillRect(0, 0, W, H);
+
+  if (n === 0 && vertices.length === 1) {
+    // ── 0D: 一个呼吸的点 ──────────────────────────────────
+    const cx = W / 2, cy = H / 2;
+    const pulse = 1 + 0.3 * Math.sin(performance.now() * 0.003);
+    const r = 6 * pulse * zoom;
+    const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, r * 4);
+    g.addColorStop(0, 'rgba(255,255,255,0.9)');
+    g.addColorStop(0.1, 'rgba(220,200,255,0.6)');
+    g.addColorStop(0.4, 'rgba(140,120,220,0.15)');
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(cx - r * 5, cy - r * 5, r * 10, r * 10);
+
+    if (showStruct) {
+      ctx.fillStyle = 'rgba(255,180,100,0.7)';
+      ctx.font = '0.65rem "Courier New", monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('(0)', cx, cy - 18);
+      ctx.fillText('0-单形 · 原点', cx, cy + 24);
+    }
+    return;
+  }
+
+  // 旋转 & 投影
+  const wv = rotateVertices(rdt);
+  const proj = wv.map(v => project(v));
+
+  // 缩放因子
+  const scale = 160 * zoom;
+
+  // 投影坐标转屏幕坐标
+  const sx = proj.map(p => W / 2 + p.x * scale);
+  const sy = proj.map(p => H / 2 - p.y * scale);
+  const sd = proj.map(p => p.depth);
+
+  // ── 轨迹 ──────────────────────────────────────────────────
+  if (showTrails && !showStruct && n >= 2) {
+    if (trailHistory.length === 0) {
+      for (let i = 0; i < sx.length; i++) trailHistory.push([]);
+    }
+    for (let i = 0; i < sx.length; i++) {
+      trailHistory[i].push({ x: sx[i], y: sy[i] });
+      if (trailHistory[i].length > 40) trailHistory[i].shift();
+      if (trailHistory[i].length > 1) {
+        ctx.strokeStyle = `rgba(180,160,220,0.08)`;
+        ctx.lineWidth = 0.5;
+        ctx.beginPath();
+        for (let j = 0; j < trailHistory[i].length; j++) {
+          if (j === 0) ctx.moveTo(trailHistory[i][j].x, trailHistory[i][j].y);
+          else ctx.lineTo(trailHistory[i][j].x, trailHistory[i][j].y);
+        }
+        ctx.stroke();
+      }
+    }
+  } else {
+    trailHistory = [];
+  }
+
+  if (showStruct) {
+    // ═══════════ 结构层 ═══════════
+
+    // 边 — 按维度着色，带深度
+    const sortedEdges = [...edges].map(e => {
+      const d1 = sd[e[0]], d2 = sd[e[1]];
+      return { ...e, avgDepth: (d1 + d2) / 2 };
+    });
+    // 远到近排序
+    sortedEdges.sort((a, b) => a.avgDepth - b.avgDepth);
+
+    for (const e of sortedEdges) {
+      const dimColor = e[2]; // 边所在的维度
+      const hue = edgeHues[dimColor % edgeHues.length];
+      const alpha = 0.15 + 0.25 * ((e.avgDepth + 3) / 6);
+      ctx.strokeStyle = `hsla(${hue},50%,55%,${Math.min(0.5, alpha)})`;
+      ctx.lineWidth = 0.6;
+      ctx.beginPath();
+      ctx.moveTo(sx[e[0]], sy[e[0]]);
+      ctx.lineTo(sx[e[1]], sy[e[1]]);
+      ctx.stroke();
+    }
+
+    // 顶点 — 带索引标签
+    for (let i = 0; i < sx.length; i++) {
+      const dNorm = (sd[i] + 3) / 6;
+      const r = Math.max(2, 3.5 - n * 0.2) * zoom;
+      ctx.fillStyle = `rgba(255,190,110,${0.4 + dNorm * 0.4})`;
+      ctx.beginPath();
+      ctx.arc(sx[i], sy[i], r, 0, Math.PI * 2);
+      ctx.fill();
+
+      // 仅低维标注
+      if (n <= 4) {
+        let label = '';
+        for (let j = 0; j < n; j++) label += ((i >> j) & 1) ? '1' : '0';
+        label = label.split('').reverse().join(''); // 高位在左
+        ctx.fillStyle = `rgba(255,200,150,0.5)`;
+        ctx.font = `${Math.max(7, 9 - n)}px "Courier New", monospace`;
+        ctx.textAlign = 'center';
+        ctx.fillText(label, sx[i], sy[i] - r - 3);
+      }
+    }
+
+    // k-面 计数表
+    const lines = [];
+    lines.push(`V = 2^${n} = ${1 << n}`);
+    if (n >= 1) lines.push(`E = ${n}·2^${n - 1} = ${n * (1 << (n - 1))}`);
+    if (n >= 2) lines.push(`F = C(${n},2)·2^${n - 2} = ${binomial(n, 2) * (1 << (n - 2))}`);
+    if (n >= 3) lines.push(`C = C(${n},3)·2^${n - 3} = ${binomial(n, 3) * (1 << (n - 3))}`);
+    if (n >= 4) {
+      let sch = '{4';
+      for (let k = 0; k < n - 2; k++) sch += ',3';
+      sch += '}';
+      lines.push(`Schläfli: ${sch}`);
+    }
+
+    ctx.fillStyle = 'rgba(255,200,140,0.5)';
+    ctx.font = '0.62rem "Courier New", monospace';
+    ctx.textAlign = 'right';
+    for (let i = 0; i < lines.length; i++) {
+      ctx.fillText(lines[i], W - 24, H - 80 - (lines.length - 1 - i) * 16);
+    }
+
+  } else {
+    // ═══════════ 表象层 ═══════════
+
+    // 边 — 远到近排序，半透明
+    const sortedEdges = [...edges].map(e => ({
+      i: e[0], j: e[1], dim: e[2],
+      avgDepth: (sd[e[0]] + sd[e[1]]) / 2
+    }));
+    sortedEdges.sort((a, b) => a.avgDepth - b.avgDepth);
+
+    for (const e of sortedEdges) {
+      const dimColor = e.dim;
+      const hue = edgeHues[dimColor % edgeHues.length];
+      const alpha = 0.15 + 0.55 * ((e.avgDepth + 3) / 6);
+      ctx.strokeStyle = `hsla(${hue},60%,60%,${Math.min(0.75, alpha)})`;
+      ctx.lineWidth = Math.max(0.4, 1.2 - n * 0.08) * zoom;
+      ctx.beginPath();
+      ctx.moveTo(sx[e.i], sy[e.i]);
+      ctx.lineTo(sx[e.j], sy[e.j]);
+      ctx.stroke();
+    }
+
+    // 顶点 — 发光圆点
+    for (let i = 0; i < sx.length; i++) {
+      const dNorm = (sd[i] + 3) / 6;
+      const r = Math.max(1.5, 4.5 - n * 0.35) * zoom;
+      const alpha = 0.35 + dNorm * 0.55;
+      const g = ctx.createRadialGradient(sx[i], sy[i], 0, sx[i], sy[i], r * 3.5);
+      g.addColorStop(0, `rgba(255,255,255,${alpha})`);
+      g.addColorStop(0.2, `rgba(220,200,255,${alpha * 0.7})`);
+      g.addColorStop(0.6, `rgba(140,120,220,${alpha * 0.2})`);
+      g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(sx[i] - r * 5, sy[i] - r * 5, r * 10, r * 10);
+    }
+
+    // 投影轮廓光晕
+    if (n >= 3) {
+      const glow = ctx.createRadialGradient(W / 2, H / 2, scale * 0.6, W / 2, H / 2, scale * 2.2);
+      glow.addColorStop(0, 'rgba(0,0,0,0)');
+      glow.addColorStop(0.5, 'rgba(100,80,180,0.03)');
+      glow.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = glow;
+      ctx.fillRect(0, 0, W, H);
+    }
+  }
+
+  // ── 坐标轴（结构层） ──────────────────────────────────────
+  if (showStruct && n >= 1) {
+    const axisLen = 2.5;
+    const axes = [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
+    const axColors = ['rgba(255,120,100,0.4)', 'rgba(100,220,140,0.4)', 'rgba(100,160,255,0.4)'];
+    for (let a = 0; a < Math.min(3, 3); a++) {
+      const p0 = project(axes[a].map(c => -c * axisLen));
+      const p1 = project(axes[a].map(c => c * axisLen));
+      ctx.strokeStyle = axColors[a];
+      ctx.lineWidth = 0.8;
+      ctx.setLineDash([4, 6]);
+      ctx.beginPath();
+      ctx.moveTo(W / 2 + p0.x * scale, H / 2 - p0.y * scale);
+      ctx.lineTo(W / 2 + p1.x * scale, H / 2 - p1.y * scale);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+  }
+
+  // ── UI 更新 ──────────────────────────────────────────────
+  fa++;
+  ft += rdt;
+  if (ft >= 0.5) { fv = Math.round(fa / ft); fa = 0; ft = 0; }
+  document.getElementById('fps').textContent = `FPS: ${fv}`;
+  document.getElementById('vc-info').textContent = `顶点: ${1 << n} (2^${n})`;
+  document.getElementById('ec-info').textContent = `边: ${n >= 1 ? n * (1 << (n - 1)) + ' (' + n + '·2^' + (n - 1) + ')' : 0}`;
+  if (n >= 2) {
+    let sch = '{4';
+    for (let k = 0; k < n - 2; k++) sch += ',3';
+    sch += '}';
+    document.getElementById('schlafli').textContent = `Schläfli: ${sch}`;
+  } else {
+    document.getElementById('schlafli').textContent = 'Schläfli: --';
+  }
+}
+
+function binomial(n, k) {
+  if (k < 0 || k > n) return 0;
+  let r = 1;
+  for (let i = 1; i <= k; i++) r = r * (n - i + 1) / i;
+  return r;
+}
+
+// ── 维度切换 ────────────────────────────────────────────────
+function setDimension(dim) {
+  dim = Math.max(0, Math.min(10, dim));
+  if (dim === n) return;
+  init(dim);
+}
+
+// ── UI 更新 ──────────────────────────────────────────────────
+function updateUI() {
+  document.getElementById('subtitle').textContent =
+    `the dimensional ladder · n = ${n}`;
+  document.getElementById('dim-display').textContent = `n = ${n}`;
+  document.querySelectorAll('.mode-btn').forEach(b => {
+    b.classList.toggle('active', parseInt(b.dataset.dim) === n);
+  });
+}
+
+// ── 主循环 ──────────────────────────────────────────────────
+let lt = 0;
+function loop(ts) {
+  requestAnimationFrame(loop);
+  const dt = lt ? Math.min(0.05, (ts - lt) / 1000) : 0.016;
+  lt = ts;
+
+  zoom += (tz - zoom) * 0.15;
+  render(dt);
+}
+
+// ── 鼠标交互 ────────────────────────────────────────────────
+let dragging = false, dragX, dragY;
+canvas.addEventListener('mousedown', e => {
+  if (e.button === 0) { dragging = true; dragX = e.clientX; dragY = e.clientY; }
+});
+window.addEventListener('mousemove', e => {
+  if (dragging) {
+    manualRX += (e.clientX - dragX) * 0.008;
+    manualRY += (e.clientY - dragY) * 0.008;
+    dragX = e.clientX; dragY = e.clientY;
+  }
+});
+window.addEventListener('mouseup', () => { dragging = false; });
+canvas.addEventListener('wheel', e => {
+  e.preventDefault();
+  tz = Math.max(0.3, Math.min(5, tz * (e.deltaY > 0 ? 0.9 : 1.1)));
+});
+canvas.addEventListener('dblclick', () => {
+  tz = 1;
+  manualRX = 0; manualRY = 0;
+  phases.fill(0);
+});
+
+// ── 键盘 ────────────────────────────────────────────────────
+window.addEventListener('keydown', e => {
+  const k = e.key.toLowerCase();
+
+  if (k === 'l') {
+    showStruct = !showStruct;
+    const ind = document.getElementById('layer-indicator'),
+      lbl = document.getElementById('layer-label'),
+      dot = document.getElementById('layer-dot');
+    if (showStruct) {
+      ind.classList.add('visible');
+      lbl.textContent = '结构';
+      lbl.classList.add('structure');
+      dot.style.background = 'rgba(255,180,100,.8)';
+      dot.style.boxShadow = '0 0 8px rgba(255,150,80,.5)';
+    } else {
+      ind.classList.add('visible');
+      lbl.textContent = '表象';
+      lbl.classList.remove('structure');
+      dot.style.background = 'rgba(100,180,255,.8)';
+      dot.style.boxShadow = '0 0 8px rgba(100,180,255,.5)';
+    }
+    clearTimeout(ind._ht);
+    ind._ht = setTimeout(() => ind.classList.remove('visible'), 2000);
+  }
+  if (k === ' ') { e.preventDefault(); paused = !paused; }
+  if (k === 't') {
+    showTrails = !showTrails;
+    document.getElementById('btn-trails').classList.toggle('on', showTrails);
+    if (!showTrails) trailHistory = [];
+  }
+  if (k === 'r') {
+    autoRotate = !autoRotate;
+    document.getElementById('btn-autorot').classList.toggle('on', autoRotate);
+  }
+  if (k === 'arrowup' || k === 'arrowright' || k === '+' || k === '=') {
+    setDimension(n + 1);
+  }
+  if (k === 'arrowdown' || k === 'arrowleft' || k === '-') {
+    setDimension(n - 1);
+  }
+  const num = parseInt(k);
+  if (!isNaN(num) && num >= 0 && num <= 9) {
+    setDimension(num);
+  }
+});
+
+// ── UI 按钮 ──────────────────────────────────────────────────
+document.getElementById('help-toggle').addEventListener('click', () => {
+  const p = document.getElementById('help-panel'),
+    t = document.getElementById('help-toggle'),
+    o = !p.classList.contains('visible');
+  p.classList.toggle('visible', o);
+  t.classList.toggle('open', o);
+});
+canvas.addEventListener('click', e => {
+  if (e.target === canvas) {
+    document.getElementById('help-panel').classList.remove('visible');
+    document.getElementById('help-toggle').classList.remove('open');
+  }
+});
+
+document.querySelectorAll('#scene-menu .mode-btn').forEach(b => {
+  b.addEventListener('click', () => {
+    setDimension(parseInt(b.dataset.dim));
+  });
+});
+
+document.getElementById('btn-dim-up').addEventListener('click', () => setDimension(n + 1));
+document.getElementById('btn-dim-down').addEventListener('click', () => setDimension(n - 1));
+document.getElementById('btn-trails').addEventListener('click', () => {
+  showTrails = !showTrails;
+  document.getElementById('btn-trails').classList.toggle('on', showTrails);
+  if (!showTrails) trailHistory = [];
+});
+document.getElementById('btn-autorot').addEventListener('click', () => {
+  autoRotate = !autoRotate;
+  document.getElementById('btn-autorot').classList.toggle('on', autoRotate);
+});
+
+// ── 触屏 ────────────────────────────────────────────────────
+canvas.addEventListener('touchstart', e => {
+  if (e.touches.length === 1) {
+    dragging = true;
+    dragX = e.touches[0].clientX;
+    dragY = e.touches[0].clientY;
+  }
+}, { passive: false });
+canvas.addEventListener('touchmove', e => {
+  if (dragging && e.touches.length === 1) {
+    manualRX += (e.touches[0].clientX - dragX) * 0.008;
+    manualRY += (e.touches[0].clientY - dragY) * 0.008;
+    dragX = e.touches[0].clientX;
+    dragY = e.touches[0].clientY;
+  }
+}, { passive: false });
+canvas.addEventListener('touchend', () => { dragging = false; });
+
+// ── 启动 ────────────────────────────────────────────────────
+init(4);
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

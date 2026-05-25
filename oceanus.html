@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>大洋之息 · 海洋生态模拟器</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #050510; overflow: hidden; font-family: 'Georgia', serif; cursor: crosshair; user-select: none; -webkit-user-select: none; touch-action: manipulation; }
+  canvas { display: block; position: fixed; top: 0; left: 0; z-index: 1; touch-action: none; }
+  #ui { position: fixed; z-index: 10; bottom: 36px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 10px; pointer-events: none; }
+  #title { color: rgba(255,255,255,0.88); font-size: 1.5rem; letter-spacing: 0.15em; text-shadow: 0 0 40px rgba(100,180,255,0.3); }
+  #subtitle { color: rgba(255,255,255,0.4); font-size: 0.7rem; letter-spacing: 0.2em; }
+  #scene-menu { position: fixed; top: 190px; left: 12px; z-index: 15; display: flex; flex-direction: column; gap: 3px; pointer-events: all; max-height: calc(100vh - 240px); overflow-y: auto; padding: 18px 4px 18px 8px; border-left: 1px solid rgba(255,255,255,0.06); }
+  #scene-menu::-webkit-scrollbar { width: 0; }
+  .mode-btn { background: none; border: none; color: rgba(255,255,255,0.22); padding: 2px 0; font-family: 'Georgia', serif; font-size: 0.72rem; letter-spacing: 0.08em; cursor: pointer; transition: color 0.3s; text-align: left; }
+  .mode-btn:hover { color: rgba(255,255,255,0.55); }
+  .mode-btn.active { color: rgba(255,255,255,0.9); text-shadow: 0 0 8px rgba(100,180,255,0.25); }
+  #info { position: fixed; top: 24px; right: 24px; z-index: 10; color: rgba(255,255,255,0.35); font-size: 0.72rem; letter-spacing: 0.06em; text-align: right; line-height: 1.7; font-family: 'Courier New', monospace; pointer-events: none; }
+  #layer-indicator { position: fixed; top: 24px; left: 50%; transform: translateX(-50%); z-index: 15; pointer-events: none; display: flex; align-items: center; gap: 10px; opacity: 0; transition: opacity 0.35s; }
+  #layer-indicator.visible { opacity: 1; }
+  #layer-indicator .layer-dot { width: 8px; height: 8px; border-radius: 50%; transition: all 0.4s; }
+  #layer-indicator .layer-label { color: rgba(255,255,255,0.55); font-size: 0.68rem; letter-spacing: 0.1em; font-family: 'Georgia', serif; }
+  #layer-indicator .layer-label.structure { color: rgba(255,180,100,0.7); }
+  #help-toggle { position: fixed; top: 20px; left: 24px; z-index: 20; width: 32px; height: 32px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.2); background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.45); font-size: 0.9rem; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.35s; pointer-events: all; font-family: 'Georgia', serif; line-height: 1; }
+  #help-toggle:hover, #help-toggle.open { background: rgba(255,255,255,0.14); color: #fff; border-color: rgba(255,255,255,0.4); box-shadow: 0 0 18px rgba(100,180,255,0.1); }
+  #help-panel { position: fixed; top: 54px; left: 24px; z-index: 19; background: rgba(12,12,30,0.92); border: 1px solid rgba(255,255,255,0.12); border-radius: 10px; padding: 16px 18px; display: flex; flex-direction: column; gap: 14px; min-width: 200px; opacity: 0; visibility: hidden; transform: translateY(-8px); transition: all 0.3s; pointer-events: none; backdrop-filter: blur(12px); }
+  #help-panel.visible { opacity: 1; visibility: visible; transform: translateY(0); pointer-events: all; }
+  #help-title { color: rgba(255,255,255,0.75); font-size: 0.8rem; letter-spacing: 0.12em; padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.08); }
+  .help-section { display: flex; flex-direction: column; gap: 5px; }
+  .help-label { color: rgba(255,255,255,0.35); font-size: 0.6rem; letter-spacing: 0.08em; text-transform: uppercase; }
+  .help-row { color: rgba(255,255,255,0.5); font-size: 0.68rem; letter-spacing: 0.05em; display: flex; align-items: center; gap: 6px; }
+  kbd { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); border-radius: 3px; padding: 1px 6px; font-family: 'Courier New', monospace; font-size: 0.65rem; color: rgba(255,255,255,0.65); }
+  .ctrl-btn { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12); color: rgba(255,255,255,0.5); padding: 5px 12px; border-radius: 12px; font-family: inherit; font-size: 0.68rem; letter-spacing: 0.06em; cursor: pointer; transition: all 0.3s; }
+  .ctrl-btn.on { background: rgba(100,150,255,0.18); color: rgba(255,255,255,0.8); border-color: rgba(100,150,255,0.4); box-shadow: 0 0 12px rgba(100,150,255,0.1); }
+  #toggle-bar { position: fixed; top: 24px; right: 24px; z-index: 15; display: flex; gap: 6px; pointer-events: all; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="ui"><div id="title">大洋之息</div><div id="subtitle">开阔大洋 · 850m</div></div>
+<div id="layer-indicator"><div class="layer-dot" id="layer-dot"></div><span class="layer-label" id="layer-label">表象</span></div>
+<div id="info"><div id="fps">FPS: --</div><div id="surf-temp">表层水温: --°C</div><div id="day-info">--</div><div id="vel-info">表层流速: --</div></div>
+<div id="toggle-bar">
+  <button class="ctrl-btn" id="btn-flowlines">F 流线</button>
+</div>
+<div id="scene-menu">
+  <button class="mode-btn active" data-biome="open-ocean">开阔大洋 850m</button>
+  <button class="mode-btn" data-biome="coral-reef">珊瑚礁 60m</button>
+  <button class="mode-btn" data-biome="kelp-forest">海藻林 60m</button>
+  <button class="mode-btn" data-biome="deep-sea">深海 900m</button>
+  <button class="mode-btn" data-biome="hydrothermal">热液喷口 900m</button>
+  <button class="mode-btn" data-biome="polar">极地海洋 300m</button>
+</div>
+<div id="help-toggle">?</div>
+<div id="help-panel">
+  <div id="help-title">大洋之息 · 操作</div>
+  <div class="help-section"><div class="help-label">键盘</div>
+    <div class="help-row"><kbd>1</kbd>-<kbd>6</kbd> 切换群系</div>
+    <div class="help-row"><kbd>L</kbd> 表象/结构层</div>
+    <div class="help-row"><kbd>F</kbd> 流线 <kbd>Space</kbd> 暂停 <kbd>R</kbd> 重置</div>
+  </div>
+  <div class="help-section"><div class="help-label">鼠标</div>
+    <div class="help-row">滚轮放大 · 右键拖拽平移 · 双击复位</div>
+    <div class="help-row">左键点击 注入染料示踪</div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════
+// 大洋之息 · Phase 1: 热力学与流体
+// ═══════════════════════════════════════════════════════
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+const LOGICAL_W = 1600, LOGICAL_H = 900, SKY_H = 80, CELL = 20;
+const GRID_W = LOGICAL_W / CELL, GRID_H = (LOGICAL_H - SKY_H) / CELL;
+const WATER_TOP = SKY_H;
+
+const BIOMES = {
+  'open-ocean':  { name:'开阔大洋', maxDepth:850, k:0.04, baseTemp:22, lat:'mid' },
+  'coral-reef':  { name:'珊瑚礁',   maxDepth:60,  k:0.08, baseTemp:26, lat:'trop' },
+  'kelp-forest': { name:'海藻林',   maxDepth:60,  k:0.06, baseTemp:18, lat:'temp' },
+  'deep-sea':    { name:'深海',     maxDepth:900, k:0.03, baseTemp:4,  lat:'mid' },
+  'hydrothermal':{ name:'热液喷口', maxDepth:900, k:0.05, baseTemp:6,  lat:'mid' },
+  'polar':       { name:'极地海洋', maxDepth:300, k:0.04, baseTemp:-1, lat:'polar' },
+};
+let curBiome = 'open-ocean', biome = BIOMES[curBiome];
+
+// ── 物理场 ────────────────────────────────────────────
+let temp = new Float32Array(GRID_W*GRID_H), temp2 = new Float32Array(GRID_W*GRID_H);
+let nutri = new Float32Array(GRID_W*GRID_H), nutri2 = new Float32Array(GRID_W*GRID_H);
+let u = new Float32Array((GRID_W+1)*GRID_H);  // u: x-velocity at cell LEFT/RIGHT edges
+let v = new Float32Array(GRID_W*(GRID_H+1));  // v: y-velocity at cell TOP/BOTTOM edges
+
+// ── 染料（被动示踪，可视化流场） ──────────────────────
+let dyeR=new Float32Array(GRID_W*GRID_H),dyeG=new Float32Array(GRID_W*GRID_H),dyeB=new Float32Array(GRID_W*GRID_H);
+let dyeR2=new Float32Array(GRID_W*GRID_H),dyeG2=new Float32Array(GRID_W*GRID_H),dyeB2=new Float32Array(GRID_W*GRID_H);
+
+// ── 状态 ──────────────────────────────────────────────
+let simT=0,paused=false,showFL=false,showStruct=false;
+const DAY_LEN=90;
+
+// ── 相机（自适应视口，始终显示全部） ──────────────────
+function fitZoom(){return Math.min(window.innerWidth/LOGICAL_W,window.innerHeight/LOGICAL_H);}
+let zoom=fitZoom(),px=0,py=0,tz=zoom,tpx=0,tpy=0;
+
+// ── Jet colormap ─────────────────────────────────────
+const JS=256,jR=new Uint8Array(JS),jG=new Uint8Array(JS),jB=new Uint8Array(JS);
+(()=>{for(let i=0;i<JS;i++){const v=i/(JS-1);let r,g,b;
+  if(v<.125){r=0;g=0;b=Math.round(255*(v+.125)/.25);}
+  else if(v<.375){r=0;g=Math.round(255*(v-.125)/.25);b=255;}
+  else if(v<.625){r=Math.round(255*(v-.375)/.25);g=255;b=255-r;}
+  else if(v<.875){r=255;g=Math.round(255*(.875-v)/.25);b=0;}
+  else{r=Math.round(255*(1.125-v)/.25);g=0;b=0;}
+  jR[i]=r;jG[i]=g;jB[i]=b;}})();
+
+function resize(){
+  const dpr=window.devicePixelRatio||1;
+  canvas.width=window.innerWidth*dpr;canvas.height=window.innerHeight*dpr;
+  canvas.style.width=window.innerWidth+'px';canvas.style.height=window.innerHeight+'px';
+  ctx.setTransform(1,0,0,1,0,0);ctx.scale(dpr,dpr);
+  const fz=fitZoom();tz=Math.max(fz,tz);zoom=tz; // 视口变化时重新适配
+}
+window.addEventListener('resize',resize);resize();
+
+// ── 坐标 ──────────────────────────────────────────────
+function ts(wx,wy){return{x:(wx-LOGICAL_W/2)*zoom+window.innerWidth/2+px,y:(wy-LOGICAL_H/2)*zoom+window.innerHeight/2+py};}
+function tw(sx,sy){return{x:(sx-window.innerWidth/2-px)/zoom+LOGICAL_W/2,y:(sy-window.innerHeight/2-py)/zoom+LOGICAL_H/2};}
+
+// ── HSV→RGB ──────────────────────────────────────────
+function hsv(h,s,v){const i=Math.floor(h*6),f=h*6-i,p=v*(1-s),q=v*(1-f*s),t=v*(1-(1-f)*s);
+  switch(i%6){case 0:return{r:v,g:t,b:p};case 1:return{r:q,g:v,b:p};case 2:return{r:p,g:v,b:t};
+  case 3:return{r:p,g:q,b:v};case 4:return{r:t,g:p,b:v};default:return{r:v,g:p,b:q};}}
+
+// ── 初始化 ────────────────────────────────────────────
+function init(){
+  biome=BIOMES[curBiome];const wh=biome.maxDepth,ppm=(LOGICAL_H-SKY_H)/wh;
+  for(let gy=0;gy<GRID_H;gy++){const dm=gy*CELL/ppm,df=dm/wh;
+    for(let gx=0;gx<GRID_W;gx++){const idx=gy*GRID_W+gx,lf=gx/(GRID_W-1);
+      let lm; if(biome.lat==='polar')lm=.2+.3*(1-lf);else if(biome.lat==='trop')lm=1-.1*lf;
+      else if(biome.lat==='temp')lm=.6+.4*lf;else lm=.7+.3*lf;
+      let t=biome.baseTemp*lm-dm*.015;if(t<2)t=2;temp[idx]=t;
+      nutri[idx]=df>.7?.3+.7*((df-.7)/.3):.05+.25*df;
+      dyeR[idx]=dyeG[idx]=dyeB[idx]=.03+.02*Math.random(); // 随机种子避免均匀色带}}
+  u.fill(0);v.fill(0);simT=0;}
+
+// ── 物理 ──────────────────────────────────────────────
+function update(dt){
+  if(dt>.05)dt=.05;if(dt<=0)return;const wh=biome.maxDepth,ppm=(LOGICAL_H-SKY_H)/wh,cm=CELL/ppm;
+  const dp=(simT%DAY_LEN)/DAY_LEN,sr=.5+.5*Math.sin(dp*Math.PI*2-Math.PI/2);
+
+  // 温度
+  for(let gy=0;gy<GRID_H;gy++){const dm=gy*cm;
+    for(let gx=0;gx<GRID_W;gx++){const i=gy*GRID_W+gx;
+      const h=sr*.5*Math.exp(-dm*.5);
+      let c=0;if(sr<.05)c=-.03*Math.exp(-dm*.1);
+      let lx=0,ly=0;if(gx>0)lx+=temp[i-1]-temp[i];if(gx<GRID_W-1)lx+=temp[i+1]-temp[i];
+      if(gy>0)ly+=temp[i-GRID_W]-temp[i];if(gy<GRID_H-1)ly+=temp[i+GRID_W]-temp[i];
+      let nt=temp[i]+(h+c+(lx+ly)*.1)*dt;if(nt<2)nt=2;if(!isFinite(nt))nt=temp[i];temp2[i]=nt;}}
+  [temp,temp2]=[temp2,temp];
+
+  // 营养盐
+  for(let gy=0;gy<GRID_H;gy++){const df=(gy*cm)/wh;
+    for(let gx=0;gx<GRID_W;gx++){const i=gy*GRID_W+gx;
+      const tn=df>.7?.3+.7*((df-.7)/.3):.05+.25*df;
+      let lx=0,ly=0;if(gx>0)lx+=nutri[i-1]-nutri[i];if(gx<GRID_W-1)lx+=nutri[i+1]-nutri[i];
+      if(gy>0)ly+=nutri[i-GRID_W]-nutri[i];if(gy<GRID_H-1)ly+=nutri[i+GRID_W]-nutri[i];
+      let nn=nutri[i]+((lx+ly)*.02+(tn-nutri[i])*.01)*dt;if(nn<0)nn=0;if(nn>1)nn=1;nutri2[i]=nn;}}
+  [nutri,nutri2]=[nutri2,nutri];
+
+  // 速度场 — 表层风生流（平滑风带，不产生突变） ────────
+  for(let gy=0;gy<GRID_H;gy++){const ek=Math.exp(-gy*cm/50);
+    for(let gx=0;gx<=GRID_W;gx++){const lf=gx/(GRID_W-1);
+      // 平滑过渡：正弦型风带，不产生尖锐方块
+      const wu=.5*Math.sin(lf*Math.PI*1.6)*1.2;
+      let nu=wu*ek;
+      if(gy<GRID_H){const vc=(v[gy*GRID_W+Math.min(gx,GRID_W-1)]+v[(gy+1)*GRID_W+Math.min(gx,GRID_W-1)])/2;nu-=vc*.15;}
+      const ui=gy*(GRID_W+1)+gx;u[ui]+=(nu-u[ui])*.1;if(!isFinite(u[ui]))u[ui]=0;}}
+  for(let gy=0;gy<=GRID_H;gy++){for(let gx=0;gx<GRID_W;gx++){
+      const vi=gy*GRID_W+gx;if(gy>0&&gy<GRID_H){const uc=(u[gy*(GRID_W+1)+gx]+u[(gy-1)*(GRID_W+1)+gx])/2;v[vi]+=(uc*.15-v[vi])*.1;}
+      if(!isFinite(v[vi]))v[vi]=0;}}
+
+  // 上升流 — 辐散驱动
+  for(let gx=1;gx<GRID_W-1;gx++){const div=(u[gx+1]-u[gx])/cm;
+    if(Math.abs(div)>.001){const st=Math.abs(div)*1.5;
+      for(let gy=GRID_H-1;gy>=1;gy--){if(gy/GRID_H>.5){const si=gy*GRID_W+gx,di=(gy-1)*GRID_W+gx;
+        nutri[di]+=nutri[si]*st*dt*.2;if(nutri[di]>1)nutri[di]=1;
+        temp[di]+=(temp[si]-temp[di])*st*dt*.05;}}}}
+
+  // 染料 advection + 平滑注入 ──────────────────────────
+  if(showStruct){
+    for(let gy=1;gy<GRID_H-1;gy++){for(let gx=1;gx<GRID_W-1;gx++){
+        const i=gy*GRID_W+gx,ui=gy*(GRID_W+1)+gx,vi=gy*GRID_W+gx;
+        const uu=(u[ui]+u[ui+1])/2,vv=(v[vi]+v[(gy+1)*GRID_W+gx])/2;
+        const sx=gx-uu*dt*15,sy=gy-vv*dt*15;
+        const sx0=Math.max(0,Math.min(GRID_W-1,Math.floor(sx))),sy0=Math.max(0,Math.min(GRID_H-1,Math.floor(sy)));
+        const sx1=Math.min(GRID_W-1,sx0+1),sy1=Math.min(GRID_H-1,sy0+1);
+        const fx=sx-sx0,fy=sy-sy0,dc=.999;
+        const s00=sy0*GRID_W+sx0,s10=sy0*GRID_W+sx1,s01=sy1*GRID_W+sx0,s11=sy1*GRID_W+sx1;
+        dyeR2[i]=dc*((1-fx)*(1-fy)*dyeR[s00]+fx*(1-fy)*dyeR[s10]+(1-fx)*fy*dyeR[s01]+fx*fy*dyeR[s11]);
+        dyeG2[i]=dc*((1-fx)*(1-fy)*dyeG[s00]+fx*(1-fy)*dyeG[s10]+(1-fx)*fy*dyeG[s01]+fx*fy*dyeG[s11]);
+        dyeB2[i]=dc*((1-fx)*(1-fy)*dyeB[s00]+fx*(1-fy)*dyeB[s10]+(1-fx)*fy*dyeB[s01]+fx*fy*dyeB[s11]);}}
+    [dyeR,dyeR2]=[dyeR2,dyeR];[dyeG,dyeG2]=[dyeG2,dyeG];[dyeB,dyeB2]=[dyeB2,dyeB];
+
+    // 平滑注入 — 辐散区(暖色) + 表层(冷色)
+    for(let gx=2;gx<GRID_W-2;gx++){const div=(u[gx+1]-u[gx-1])/(2*cm);
+      if(Math.abs(div)>.0008){const hue=(simT*.008+gx*.02)%1,rgb=hsv(hue,.8,.5);
+        // 注入上半水柱（扩散）
+        for(let gy=Math.floor(GRID_H*.3);gy<GRID_H-3;gy+=3){
+          const i=gy*GRID_W+gx;dyeR[i]=Math.min(1,dyeR[i]+rgb.r*dt*1.5);dyeG[i]=Math.min(1,dyeG[i]+rgb.g*dt*1.5);dyeB[i]=Math.min(1,dyeB[i]+rgb.b*dt*1.5);}}
+      // 表层 ekman 层 — 缓慢注入冷色
+      const i=0*GRID_W+gx,hue=.58+.05*(gx/GRID_W),rgb=hsv(hue,.4,.35);
+      dyeR[i]=Math.min(1,dyeR[i]+rgb.r*dt*.3);dyeG[i]=Math.min(1,dyeG[i]+rgb.g*dt*.3);dyeB[i]=Math.min(1,dyeB[i]+rgb.b*dt*.3);}
+  }
+  simT+=dt;}
+
+// ── 渲染 ──────────────────────────────────────────────
+let fu=0,ft=0,fa=0,fv=0;
+
+function render(rdt){
+  const W=window.innerWidth,H=window.innerHeight;
+  ctx.clearRect(0,0,W,H);
+  const dp=(simT%DAY_LEN)/DAY_LEN,sr=.5+.5*Math.sin(dp*Math.PI*2-Math.PI/2);
+  const wh=biome.maxDepth,ppm=(LOGICAL_H-SKY_H)/wh;
+
+  // ═══ 天空（两层共享） ═══
+  const wts=ts(0,WATER_TOP);if(wts.y>0){const g=ctx.createLinearGradient(0,0,0,wts.y);
+    const sb=Math.max(.05,sr);g.addColorStop(0,`rgb(${10+sb*20},${15+sb*35},${35+sb*70})`);
+    g.addColorStop(.6,`rgb(${20+sb*30},${35+sb*50},${60+sb*90})`);g.addColorStop(1,`rgb(${40+sb*40},${60+sb*50},${100+sb*80})`);
+    ctx.fillStyle=g;ctx.fillRect(0,0,W,wts.y);}
+
+  // 太阳
+  if(sr>.02){const sy=WATER_TOP-10-sr*55,sx=LOGICAL_W*(.3+.4*dp),sp=ts(sx,sy);
+    const a=sr*.85,g=ctx.createRadialGradient(sp.x,sp.y,0,sp.x,sp.y,100*zoom);
+    g.addColorStop(0,`rgba(255,240,210,${a})`);g.addColorStop(.15,`rgba(255,200,130,${a*.5})`);g.addColorStop(.4,`rgba(255,140,60,${a*.12})`);g.addColorStop(1,'rgba(255,80,30,0)');
+    ctx.fillStyle=g;ctx.fillRect(sp.x-130*zoom,sp.y-130*zoom,260*zoom,260*zoom);}
+
+  if(showStruct){
+    // ═══════════ 结构层：网格热力图叠加在暗背景上 ═══════════
+    for(let gy=0;gy<GRID_H;gy++){for(let gx=0;gx<GRID_W;gx++){
+        const wx=gx*CELL,wy=WATER_TOP+gy*CELL,sc=ts(wx,wy),sc2=ts(wx+CELL,wy+CELL);
+        const cw=Math.max(1,sc2.x-sc.x+.5),ch=Math.max(1,sc2.y-sc.y+.5);
+        const i=gy*GRID_W+gx,ui=gy*(GRID_W+1)+gx,vi=gy*GRID_W+gx;
+        const uu=(u[ui]+u[ui+1])/2,vv=(v[vi]+v[(gy+1)*GRID_W+gx])/2,spd=Math.sqrt(uu*uu+vv*vv);
+        const sn=Math.min(1,spd*5),si=Math.floor(sn*(JS-1));
+        const dr=dyeR[i]*255,dg=dyeG[i]*255,db=dyeB[i]*255;
+        const r=Math.min(255,Math.round(jR[si]*.2+dr*.8));
+        const g=Math.min(255,Math.round(jG[si]*.2+dg*.8));
+        const b=Math.min(255,Math.round(jB[si]*.2+db*.8));
+        ctx.fillStyle=`rgb(${r},${g},${b})`;ctx.fillRect(sc.x,sc.y,cw,ch);}}
+
+    // 微弱温度参考线（仅标注层化结构）
+    for(let tv=4;tv<=24;tv+=6){ctx.strokeStyle=`rgba(255,255,255,${.04+.04*(tv/24)})`;ctx.lineWidth=.4;ctx.beginPath();let st=false;
+      for(let gy=1;gy<GRID_H;gy++){for(let gx=0;gx<GRID_W;gx++){
+          const i0=(gy-1)*GRID_W+gx,i1=gy*GRID_W+gx;
+          if((temp[i0]-tv)*(temp[i1]-tv)<0){const f=(tv-temp[i0])/(temp[i1]-temp[i0]+.0001);
+            const wy=WATER_TOP+(gy-1+f)*CELL,wx=(gx+.5)*CELL,sc=ts(wx,wy);
+            if(!st){ctx.moveTo(sc.x,sc.y);st=true;}else ctx.lineTo(sc.x,sc.y);}
+          else{if(st){ctx.stroke();st=false;ctx.beginPath();}}}}
+      if(st)ctx.stroke();}
+
+    // 水面线
+    const wls=ts(0,WATER_TOP).y;ctx.strokeStyle='rgba(255,255,255,0.4)';ctx.lineWidth=1.5;
+    ctx.beginPath();ctx.moveTo(0,wls);ctx.lineTo(W,wls);ctx.stroke();
+
+  }else{
+    // ═══════════ 表象层：海水 ═══════════
+    const layers=60;
+    for(let i=0;i<layers;i++){const fr=i/layers,dm=fr*wh,lad=sr*Math.exp(-biome.k*dm);
+      const rl=Math.max(0,lad/Math.max(.02,sr)),lf=Math.pow(rl,.35);
+      const y0=WATER_TOP+fr*(LOGICAL_H-WATER_TOP),y1=WATER_TOP+((i+1)/layers)*(LOGICAL_H-WATER_TOP);
+      const sc0=ts(0,y0),sc1=ts(0,y1);let r,g,b;
+      if(dm<200){const f=dm/200;r=20+f*8;g=90+lf*50-f*30;b=150+lf*80-f*20;}
+      else if(dm<600){const f=(dm-200)/400;r=8-f*6;g=30-f*22;b=60-f*42;}
+      else{const f=Math.min(1,(dm-600)/(wh-600));r=2-f*2;g=4-f*4;b=12-f*12;}
+      r=Math.max(0,r*(.25+.75*lf));g=Math.max(0,g*(.25+.75*lf));b=Math.max(0,b*(.2+.8*lf));
+      ctx.fillStyle=`rgb(${Math.round(r)},${Math.round(g)},${Math.round(b)})`;ctx.fillRect(0,sc0.y,W,sc1.y-sc0.y+1);}
+
+    // 透光层边界
+    const d1=Math.log(Math.max(.02,sr)/(sr*.01))/biome.k;
+    if(d1>0&&d1<wh){const ey=ts(0,WATER_TOP+d1*ppm).y;
+      const pulse=.06+.03*Math.sin(simT*.4)+.02*sr;
+      ctx.strokeStyle=`rgba(120,190,210,${Math.min(.2,pulse)})`;ctx.lineWidth=Math.max(1,2.5*zoom);
+      ctx.beginPath();ctx.moveTo(0,ey);ctx.lineTo(W,ey);ctx.stroke();}
+
+    // 悬浮粒子
+    if(sr>.05)for(let i=0;i<80;i++){const px=(i*137.5+simT*17)%LOGICAL_W,py=WATER_TOP+((i*73+simT*23)%Math.max(1,180*ppm));
+      const sc=ts(px,py),f=.3+.7*Math.abs(Math.sin(simT*3+i*1.7));
+      ctx.fillStyle=`rgba(200,230,255,${f*sr*.5})`;ctx.fillRect(sc.x-.5,sc.y-.5,1,1);}
+
+    // 水面波浪 — 由表层风驱动（风强→波高）
+    const wAmp=1.5;let maxSU=0;for(let gx=0;gx<GRID_W;gx++)maxSU=Math.max(maxSU,Math.abs(u[gx]));
+    const waveH=wAmp+maxSU*3; // 风强时浪更高
+    ctx.strokeStyle=`rgba(255,255,255,${.2+sr*.15})`;ctx.lineWidth=1;
+    ctx.beginPath();
+    for(let i=0;i<=200;i++){const wx=i/200*LOGICAL_W,gx=Math.min(GRID_W-1,Math.floor(wx/CELL));
+      const su=u[gx]; // 该位置表层流速
+      const wy=WATER_TOP+Math.sin(wx*.008+simT*1.2)*waveH+Math.sin(wx*.02+simT*.7)*waveH*.7+su*2;
+      const sc=ts(wx,wy);if(i===0)ctx.moveTo(sc.x,sc.y);else ctx.lineTo(sc.x,sc.y);}
+    ctx.stroke();
+
+    // 海底
+    const sb=ts(0,LOGICAL_H).y,sg=ctx.createLinearGradient(0,sb-20,0,sb+10);
+    sg.addColorStop(0,'rgba(80,70,50,0.4)');sg.addColorStop(.5,'rgba(60,50,35,0.5)');sg.addColorStop(1,'rgba(40,30,20,0.6)');
+    ctx.fillStyle=sg;ctx.fillRect(0,sb-5,W,20);
+  }
+
+  // ═══ 流线（两层共享） ═══
+  if(showFL){const ss=5,ms=150,sx=12,sy=8;ctx.strokeStyle='rgba(255,255,255,0.22)';ctx.lineWidth=.6;
+    for(let si=0;si<sx;si++)for(let sj=0;sj<sy;sj++){let x=(si+.5)*LOGICAL_W/sx,y=WATER_TOP+(sj+.5)*(LOGICAL_H-WATER_TOP)/sy;
+      ctx.beginPath();const sc0=ts(x,y);ctx.moveTo(sc0.x,sc0.y);
+      for(let s=0;s<ms;s++){const gx=Math.floor(x/CELL),gy=Math.floor((y-WATER_TOP)/CELL);
+        if(gx<0||gx>=GRID_W||gy<0||gy>=GRID_H)break;
+        const ui=gy*(GRID_W+1)+gx,vi=gy*GRID_W+gx;
+        const uu=(u[ui]+u[ui+1])/2,vv=(v[vi]+v[(gy+1)*GRID_W+gx])/2,spd=Math.sqrt(uu*uu+vv*vv);
+        if(spd<.002)break;x+=uu/spd*ss;y+=vv/spd*ss;const sc=ts(x,y);ctx.lineTo(sc.x,sc.y);}
+      ctx.stroke();}}
+
+  // ── UI ──────────────────────────────────────────────
+  fa++;ft+=rdt;if(ft>=.5){fv=Math.round(fa/ft);fa=0;ft=0;}
+  document.getElementById('fps').textContent=`FPS: ${fv}`;
+  let ss=0;for(let gx=0;gx<GRID_W;gx++)ss+=temp[gx];
+  document.getElementById('surf-temp').textContent=`表层水温: ${(ss/GRID_W).toFixed(1)}°C`;
+  document.getElementById('day-info').textContent=dp>.25&&dp<.75?'☀️ 昼':'🌙 夜';
+  let su=0;for(let gx=0;gx<GRID_W;gx++)su+=Math.abs(u[gx]);
+  document.getElementById('vel-info').textContent=`表层流速: ${(su/GRID_W).toFixed(3)} m/s`;
+}
+
+// ── 主循环 ────────────────────────────────────────────
+let lt=0;
+function loop(ts){requestAnimationFrame(loop);const dt=lt?(ts-lt)/1000:.016;lt=ts;
+  if(!paused)update(dt);zoom+=(tz-zoom)*.15;px+=(tpx-px)*.15;py+=(tpy-py)*.15;render(dt);}
+
+// ── 鼠标 ──────────────────────────────────────────────
+let rd=false,rx,ry,rpx,rpy,mx=0,my=0;
+canvas.addEventListener('mousemove',e=>{mx=e.clientX;my=e.clientY;
+  if(rd){tpx=rpx+(e.clientX-rx);tpy=rpy+(e.clientY-ry);px=tpx;py=tpy;}});
+canvas.addEventListener('mousedown',e=>{if(e.button===2){rd=true;rx=e.clientX;ry=e.clientY;rpx=px;rpy=py;e.preventDefault();}});
+window.addEventListener('mouseup',e=>{if(e.button===2)rd=false;});
+canvas.addEventListener('contextmenu',e=>e.preventDefault());
+canvas.addEventListener('wheel',e=>{e.preventDefault();const nz=Math.max(fitZoom(),Math.min(5,tz*(e.deltaY>0?.9:1.1)));
+  const mx=e.clientX-window.innerWidth/2,my=e.clientY-window.innerHeight/2;
+  tpx=mx-(mx-tpx)*(nz/tz);tpy=my-(my-tpy)*(nz/tz);tz=nz;});
+canvas.addEventListener('dblclick',()=>{tz=fitZoom();tpx=0;tpy=0;});
+
+// 左键点击：注入染料
+canvas.addEventListener('click',e=>{
+  if(e.target!==canvas)return;
+  const wp=tw(e.clientX,e.clientY);
+  const gx=Math.floor(wp.x/CELL),gy=Math.floor((wp.y-WATER_TOP)/CELL);
+  if(gx<0||gx>=GRID_W||gy<0||gy>=GRID_H)return;
+  const hue=(simT*.05)%1,rgb=hsv(hue,.9,.8);
+  // 注入染料到点击区域（5×3范围）
+  for(let dy=-1;dy<=1;dy++)for(let dx=-2;dx<=2;dx++){
+    const nx=gx+dx,ny=gy+dy;if(nx<0||nx>=GRID_W||ny<0||ny>=GRID_H)continue;
+    const i=ny*GRID_W+nx;dyeR[i]=Math.min(1,dyeR[i]+rgb.r*.7);dyeG[i]=Math.min(1,dyeG[i]+rgb.g*.7);dyeB[i]=Math.min(1,dyeB[i]+rgb.b*.7);
+  }
+  // 轻微推动流场
+  const ui=gy*(GRID_W+1)+gx,vi=gy*GRID_W+gx;
+  if(Math.abs(u[ui])<.5)u[ui]+=.05;if(Math.abs(v[vi])<.5)v[vi]-=.03;
+});
+
+// ── 键盘 ──────────────────────────────────────────────
+window.addEventListener('keydown',e=>{
+  const k=e.key.toLowerCase();
+  if(k==='l'){showStruct=!showStruct;const ind=document.getElementById('layer-indicator'),lbl=document.getElementById('layer-label'),dot=document.getElementById('layer-dot');
+    if(showStruct){ind.classList.add('visible');lbl.textContent='结构';lbl.classList.add('structure');dot.style.background='rgba(255,180,100,.8)';dot.style.boxShadow='0 0 8px rgba(255,150,80,.5)';}
+    else{ind.classList.add('visible');lbl.textContent='表象';lbl.classList.remove('structure');dot.style.background='rgba(100,180,255,.8)';dot.style.boxShadow='0 0 8px rgba(100,180,255,.5)';}
+    clearTimeout(ind._ht);ind._ht=setTimeout(()=>ind.classList.remove('visible'),2000);}
+  if(k==='f'){showFL=!showFL;document.getElementById('btn-flowlines').classList.toggle('on',showFL);}
+  if(k===' '){e.preventDefault();paused=!paused;}
+  if(k==='r')init();
+  const bk=['1','2','3','4','5','6'],bn=['open-ocean','coral-reef','kelp-forest','deep-sea','hydrothermal','polar'];
+  const ki=bk.indexOf(k);
+  if(ki>=0){curBiome=bn[ki];biome=BIOMES[curBiome];document.getElementById('subtitle').textContent=`${biome.name} · ${biome.maxDepth}m`;
+    document.querySelectorAll('.mode-btn').forEach(b=>b.classList.toggle('active',b.dataset.biome===curBiome));init();}
+});
+
+// ── UI 按钮 ────────────────────────────────────────────
+document.getElementById('help-toggle').addEventListener('click',()=>{const p=document.getElementById('help-panel'),t=document.getElementById('help-toggle'),o=!p.classList.contains('visible');p.classList.toggle('visible',o);t.classList.toggle('open',o);});
+canvas.addEventListener('click',e=>{if(e.target===canvas){document.getElementById('help-panel').classList.remove('visible');document.getElementById('help-toggle').classList.remove('open');}});
+document.querySelectorAll('#scene-menu .mode-btn').forEach(b=>{b.addEventListener('click',()=>{curBiome=b.dataset.biome;biome=BIOMES[curBiome];document.getElementById('subtitle').textContent=`${biome.name} · ${biome.maxDepth}m`;document.querySelectorAll('.mode-btn').forEach(x=>x.classList.remove('active'));b.classList.add('active');init();});});
+document.getElementById('btn-flowlines').addEventListener('click',()=>{showFL=!showFL;document.getElementById('btn-flowlines').classList.toggle('on',showFL);});
+
+init();requestAnimationFrame(loop);
+</script>
+</body>
+</html>

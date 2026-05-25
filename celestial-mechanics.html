@@ -36,8 +36,8 @@
   }
   /* Scene menu — minimal text labels */
   #scene-menu {
-    position: fixed; top: 190px; left: 12px; z-index: 15;
-    display: flex; flex-direction: column; gap: 3px;
+    position: fixed; top: 200px; left: 12px; z-index: 15;
+    display: flex; flex-direction: column; gap: 5px;
     pointer-events: all;
     max-height: calc(100vh - 240px);
     overflow-y: auto;
@@ -67,10 +67,10 @@
   }
   .mode-btn {
     background: none; border: none;
-    color: rgba(255,255,255,0.22);
+    color: rgba(255,255,255,0.25);
     padding: 2px 0;
     font-family: 'Georgia', serif;
-    font-size: 0.72rem;
+    font-size: 0.9rem;
     letter-spacing: 0.08em;
     cursor: pointer;
     transition: color 0.3s;
@@ -84,7 +84,7 @@
 
   #info {
     position: fixed; top: 24px; right: 24px; z-index: 10;
-    color: rgba(255,255,255,0.35); font-size: 0.72rem;
+    color: rgba(255,255,255,0.4); font-size: 0.95rem;
     letter-spacing: 0.06em; text-align: right; line-height: 1.7;
     font-family: 'Courier New', monospace;
     pointer-events: none;
@@ -92,19 +92,19 @@
 
   /* Milestone panel */
   #milestone-panel {
-    position: fixed; top: 500px; left: 18px; z-index: 12;
+    position: fixed; top: 620px; right: 8px; z-index: 12;
     pointer-events: none;
-    display: flex; flex-direction: column; gap: 3px;
+    display: flex; flex-direction: column; gap: 4px;
   }
   #milestone-title {
-    color: rgba(255,255,255,0.3);
-    font-size: 0.55rem; letter-spacing: 0.1em;
+    color: rgba(255,255,255,0.35);
+    font-size: 0.72rem; letter-spacing: 0.1em;
     text-transform: uppercase;
   }
   .milestone-line {
-    color: rgba(255,255,255,0.2);
+    color: rgba(255,255,255,0.25);
     font-family: 'Courier New', monospace;
-    font-size: 0.52rem;
+    font-size: 0.7rem;
     letter-spacing: 0.03em;
     transition: color 0.5s;
     white-space: nowrap;
@@ -118,21 +118,21 @@
     color: rgba(255,255,255,0.65);
   }
   .milestone-progress {
-    color: rgba(255,255,255,0.25);
-    font-size: 0.45rem;
+    color: rgba(255,255,255,0.3);
+    font-size: 0.6rem;
     margin-left: 4px;
   }
 
   #event-log {
-    position: fixed; top: 108px; right: 24px; z-index: 10;
+    position: fixed; top: 115px; right: 24px; z-index: 10;
     display: flex; flex-direction: column; gap: 5px;
     pointer-events: none;
-    max-width: 300px;
+    max-width: 320px;
   }
 
   /* Star placement grid — collapsible */
   #star-panel {
-    position: fixed; top: 200px; right: 8px; z-index: 15;
+    position: fixed; top: 210px; right: 8px; z-index: 15;
     pointer-events: all;
     background: rgba(10,10,25,0.88);
     border: 1px solid rgba(255,255,255,0.1);
@@ -150,7 +150,7 @@
   }
   #star-panel-title {
     color: rgba(255,255,255,0.5);
-    font-size: 0.55rem; letter-spacing: 0.1em;
+    font-size: 0.68rem; letter-spacing: 0.1em;
   }
   #star-panel-toggle {
     width: 18px; height: 18px;
@@ -172,19 +172,19 @@
     display: grid;
     grid-template-columns: repeat(2, 1fr);
     gap: 3px;
-    max-height: 260px;
+    max-height: 340px;
     overflow-y: auto;
     padding-right: 2px;
     transition: grid-template-columns 0.25s ease;
   }
   #star-list.expanded {
     grid-template-columns: repeat(4, 1fr);
-    max-height: 340px;
+    max-height: 420px;
   }
   #star-list::-webkit-scrollbar { width: 3px; }
   #star-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 2px; }
   .star-entry {
-    width: 60px; height: 60px;
+    width: 68px; height: 68px;
     display: flex; flex-direction: column;
     align-items: center; justify-content: center;
     gap: 2px;
@@ -194,7 +194,7 @@
     border: 1px solid rgba(255,255,255,0.06);
     background: rgba(255,255,255,0.02);
     color: rgba(255,255,255,0.45);
-    font-size: 0.5rem;
+    font-size: 0.6rem;
     letter-spacing: 0.03em;
     text-align: center;
     line-height: 1.1;
@@ -212,14 +212,14 @@
     box-shadow: 0 0 16px rgba(180,200,255,0.15);
   }
   .star-entry-orb {
-    width: 26px; height: 26px;
+    width: 30px; height: 30px;
     border-radius: 50%;
     flex-shrink: 0;
   }
   .event-line {
     color: rgba(255,220,140,0.85);
     font-family: 'Courier New', monospace;
-    font-size: 0.65rem;
+    font-size: 0.78rem;
     letter-spacing: 0.04em;
     text-align: right;
     line-height: 1.4;
@@ -237,7 +237,7 @@
 
   #hint {
     color: rgba(255,255,255,0.25);
-    font-size: 0.72rem; letter-spacing: 0.08em;
+    font-size: 0.85rem; letter-spacing: 0.08em;
     transition: opacity 2s;
   }
 
@@ -286,7 +286,7 @@
 
   /* Help dropdown */
   #help-panel {
-    position: fixed; top: 54px; left: 24px; z-index: 19;
+    position: fixed; top: 60px; left: 24px; z-index: 19;
     background: rgba(12,12,30,0.92);
     border: 1px solid rgba(255,255,255,0.12);
     border-radius: 10px;
@@ -309,7 +309,7 @@
 
   #help-title {
     color: rgba(255,255,255,0.75);
-    font-size: 0.8rem; letter-spacing: 0.12em;
+    font-size: 0.85rem; letter-spacing: 0.12em;
     padding-bottom: 8px;
     border-bottom: 1px solid rgba(255,255,255,0.08);
   }
@@ -317,11 +317,11 @@
   .help-section { display: flex; flex-direction: column; gap: 5px; }
   .help-label {
     color: rgba(255,255,255,0.35);
-    font-size: 0.6rem; letter-spacing: 0.08em;
+    font-size: 0.65rem; letter-spacing: 0.08em;
     text-transform: uppercase;
   }
   .help-row {
-    color: rgba(255,255,255,0.5); font-size: 0.68rem;
+    color: rgba(255,255,255,0.5); font-size: 0.72rem;
     letter-spacing: 0.05em;
     display: flex; align-items: center; gap: 6px;
   }
@@ -331,14 +331,14 @@
     border-radius: 3px;
     padding: 1px 6px;
     font-family: 'Courier New', monospace;
-    font-size: 0.65rem;
+    font-size: 0.7rem;
     color: rgba(255,255,255,0.65);
     white-space: nowrap;
   }
 
   .ctrl-group {
     display: flex; align-items: center; gap: 8px;
-    color: rgba(255,255,255,0.45); font-size: 0.68rem;
+    color: rgba(255,255,255,0.45); font-size: 0.72rem;
     letter-spacing: 0.06em;
   }
   .ctrl-group input[type="range"] {
@@ -359,7 +359,7 @@
     border: 1px solid rgba(255,255,255,0.12);
     color: rgba(255,255,255,0.5);
     padding: 5px 12px; border-radius: 12px;
-    font-family: inherit; font-size: 0.68rem;
+    font-family: inherit; font-size: 0.72rem;
     letter-spacing: 0.06em;
     cursor: pointer;
     transition: all 0.3s;
@@ -417,7 +417,7 @@
 <div id="ui">
   <div id="title">万象引力 · 星体</div>
   <div id="subtitle">牛顿引力下的 N 体宇宙</div>
-  <div id="hint">点击放置 · 拖拽弹射 · 右键消除 · <kbd>L</kbd> 双层空间 · <span style="color:rgba(255,255,255,0.5)">?</span> 操作</div>
+  <div id="hint">先选天体格 · 点击放置 · 拖拽弹射 · 右键消除 · <span style="color:rgba(255,255,255,0.5)">?</span> 操作</div>
 </div>
 
 <div id="layer-indicator">
@@ -498,7 +498,7 @@
     </div>
     <div class="ctrl-group">
       <span>速度</span>
-      <input type="range" id="speed-slider" min="0.1" max="3" step="0.1" value="1">
+      <input type="range" id="speed-slider" min="0.1" max="3" step="0.1" value="1.5">
     </div>
   </div>
   <div class="help-section">
@@ -506,6 +506,7 @@
     <button class="ctrl-btn on" id="toggle-trails">轨道痕迹</button>
     <button class="ctrl-btn" id="toggle-lines">引力线</button>
     <button class="ctrl-btn on" id="toggle-relativity">相对论</button>
+    <button class="ctrl-btn" id="toggle-grid-quality">网格精度</button>
   </div>
 </div>
 
@@ -523,7 +524,7 @@ const ctx = canvas.getContext('2d');
 // ── Physical constants (real units) ─────────────
 const G0 = 4 * Math.PI * Math.PI; // ≈ 39.478 AU³/(M☉·year²)
 const PX_PER_AU = 50;             // display: 1 AU = 50px at zoom=1
-const DT_BASE = 1 / 2400;         // 2400 steps ≈ 1 Earth orbit ≈ 40 sec @60fps
+const DT_BASE = 1 / 1500;         // 1500 steps ≈ 1 Earth orbit ≈ 25 sec @60fps
 // Real reference values for display
 const M_SUN_KG = 1.989e30;        // kg
 const AU_KM = 1.496e8;            // km
@@ -586,14 +587,17 @@ function resetCamera() { camX = 0; camY = 0; zoom = 1; }
 
 // ── Simulation Parameters ────────────────────────
 let G = G0;              // gravitational constant (AU³/(M☉·year²))
-let simSpeed = 1.0;
+let simSpeed = 1.5;
 
 // ── Toggles ─────────────────────────────────────
 let showGrid = true;
 let showTrails = true;
 let showForceLines = false;
-let showRelativity = true;  // post-Newtonian + lensing
-let layerMode = 'manifest'; // 'manifest' | 'structure' — 双层空间
+let showRelativity = true;
+const GRID_LEVELS = [[30,20],[50,35],[75,50],[110,75]];
+const gridLabels = ['网格 低','网格 中','网格 高','网格 极致'];
+let gridQuality = 1;
+let layerMode = 'manifest';
 
 // Layer indicator DOM
 const layerIndicator = document.getElementById('layer-indicator');
@@ -710,12 +714,19 @@ class Starfield {
 // ═══════════════════════════════════════════════════
 class FieldGrid {
   constructor() {
-    this.cols = 50;
-    this.rows = 35;
-    this.vertices = null; // computed each frame
+    this.cols = 50; this.rows = 35;
+    this.vertices = null;
+  }
+
+  updateResolution() {
+    const [c, r] = GRID_LEVELS[gridQuality] || GRID_LEVELS[1];
+    if (this.cols !== c || this.rows !== r) {
+      this.cols = c; this.rows = r; this.vertices = null;
+    }
   }
 
   compute(bodies) {
+    this.updateResolution();
     const cols = this.cols;
     const rows = this.rows;
     // Visible world region in AU
@@ -1050,40 +1061,56 @@ function solveGravity(bodies) {
       const now = performance.now();
       if ((b._shieldUntil && b._shieldUntil > now) || (other._shieldUntil && other._shieldUntil > now)) continue;
       if (dist < mergeDist) {
-        const tm = b.mass + other.mass;
-        b.x = (b.x * b.mass + other.x * other.mass) / tm;
-        b.y = (b.y * b.mass + other.y * other.mass) / tm;
-        b.vx = (b.vx * b.mass + other.vx * other.mass) / tm;
-        b.vy = (b.vy * b.mass + other.vy * other.mass) / tm;
+        // Save pre-merge values BEFORE modifying b
+        const bMass0 = b.mass, oMass0 = other.mass;
+        const bVx0 = b.vx, bVy0 = b.vy, oVx0 = other.vx, oVy0 = other.vy;
+        const relSpeed = Math.sqrt((oVx0-bVx0)**2 + (oVy0-bVy0)**2);
+        const tm = bMass0 + oMass0;
+        const biggerIsB = bMass0 >= oMass0;
+
+        // Merge: conserve momentum, position at center of mass
+        b.x = (b.x * bMass0 + other.x * oMass0) / tm;
+        b.y = (b.y * bMass0 + other.y * oMass0) / tm;
+        b.vx = (bVx0 * bMass0 + oVx0 * oMass0) / tm;
+        b.vy = (bVy0 * bMass0 + oVy0 * oMass0) / tm;
         b.mass = tm;
-        b.radius = Math.cbrt(b.mass) * 0.10 + 0.025;
-        b.color = b._massColor(b.mass);
-        b.trail = [];
+        b.radius = Math.cbrt(tm) * 0.10 + 0.025;
         b.ax = 0; b.ay = 0;
         other.alive = false;
-        // Compute relative speed at merge
-        const rdx = other.vx - b.vx, rdy = other.vy - b.vy;
-        const relSpeed = Math.sqrt(rdx*rdx + rdy*rdy);
-        const massRatio = b.mass / (other.mass || 0.001);
-        const minMass = Math.min(b.mass, other.mass);
-        const c = other.color || b.color;
 
-        // Tidal disruption: small body torn apart by large one
-        if (massRatio > 8 || (b.mass > 0 && other.mass > 0 && massRatio < 0.125)) {
-          spawnParticles(b.x, b.y, 25, relSpeed*0.4 + 1.5, 2.5, `${c.r},${c.g},${c.b}`, 0.008);
-          emitEvent(`${b.name} 与 ${other.name} 融合 · 潮汐撕裂碎片`);
+        // Keep identity of the more massive body
+        if (!biggerIsB) {
+          b.name = other.name;
+          b.color = other.color;
         }
-        // High-speed impact debris
-        else if (relSpeed > 3) {
+        // If near-equal mass, blend colors
+        if (Math.min(bMass0, oMass0) / Math.max(bMass0, oMass0) > 0.3) {
+          const bc = b.color, oc = other.color;
+          b.color = {
+            r: Math.round((bc.r + oc.r) / 2),
+            g: Math.round((bc.g + oc.g) / 2),
+            b: Math.round((bc.b + oc.b) / 2)
+          };
+        }
+        // Only clear trail if it was a disruptive merger
+        if (relSpeed > 2 || Math.min(bMass0, oMass0) < tm * 0.1) {
+          b.trail = [];
+        }
+
+        // Particle effects
+        const massRatio = Math.max(bMass0, oMass0) / Math.max(Math.min(bMass0, oMass0), 1e-10);
+        const debrisColor = biggerIsB ? (other.color || b.color) : (b.color || other.color);
+
+        if (massRatio > 10) {
+          spawnParticles(b.x, b.y, 25, relSpeed*0.4 + 1.5, 2.5, `${debrisColor.r},${debrisColor.g},${debrisColor.b}`, 0.008);
+          emitEvent(`${biggerIsB ? b.name : other.name} 撕碎了 ${biggerIsB ? other.name : b.name} · 潮汐瓦解`);
+        } else if (relSpeed > 3) {
           spawnParticles(b.x, b.y, 20, relSpeed*0.5, 1.8, '255,200,100', 0.01);
-          emitEvent(`${b.name} 与 ${other.name} 撞击 · 质量 ${b.mass.toFixed(1)}`);
-        }
-        // Normal merger
-        else {
-          emitEvent(`${b.name} 与 ${other.name} 融合 · 质量 ${b.mass.toFixed(1)}`);
+          emitEvent(`${b.name} 与 ${other.name} 高速撞击 · 质量 ${tm.toFixed(2)} M☉`);
+        } else {
+          emitEvent(`${b.name} 与 ${other.name} 融合 · 质量 ${tm.toFixed(2)} M☉`);
         }
 
-        // Gravitational wave chirp if massive merger
         if (tm > 3 && showRelativity) {
           gwChirp = { x: b.x, y: b.y, t0: performance.now()*0.001, mass: tm, active: true };
         }
@@ -1173,53 +1200,42 @@ function solveGravity(bodies) {
 function drawForceLines(ctx, bodies) {
   if (bodies.length < 2) return;
 
-  // Draw force vectors for top N massive bodies
   const sorted = [...bodies].sort((a, b) => b.mass - a.mass);
-  const topN = Math.min(sorted.length, 8);
+  const topN = Math.min(sorted.length, 6);
 
   for (let i = 0; i < topN; i++) {
     const a = sorted[i];
-    for (let j = i + 1; j < Math.min(topN, bodies.length); j++) {
+    for (let j = i + 1; j < topN; j++) {
       const b = sorted[j];
-      const dx = b.x - a.x;
-      const dy = b.y - a.y;
-      const dist = Math.sqrt(dx * dx + dy * dy);
+      const dx = b.x - a.x, dy = b.y - a.y;
+      const dist = Math.sqrt(dx*dx + dy*dy);
+      if (dist < 0.05) continue;
+      const nx = dx/dist, ny = dy/dist;
 
-      // Force magnitude visualization
-      const forceMag = G * a.mass * b.mass / (dist * dist + 100);
-      const alpha = Math.min(forceMag * 200, 0.35);
+      // Force magnitude (in AU units)
+      const forceMag = G * a.mass * b.mass / (dist * dist + 0.01);
+      const alpha = Math.min(0.3, forceMag * 0.8);
 
-      // Draw dashed line with brightness proportional to force
+      // Subtle glow line — thickness ∝ force
       ctx.beginPath();
-      ctx.setLineDash([4, 8]);
       ctx.moveTo(a.x, a.y);
       ctx.lineTo(b.x, b.y);
-      ctx.strokeStyle = `rgba(140,180,255,${alpha})`;
-      ctx.lineWidth = Math.min(forceMag * 50, 1.5);
+      ctx.strokeStyle = `rgba(160,200,255,${alpha})`;
+      ctx.lineWidth = Math.min(0.03, forceMag * 0.06);
       ctx.stroke();
-      ctx.setLineDash([]);
 
-      // Draw force arrow at midpoint
-      const mx = (a.x + b.x) / 2;
-      const my = (a.y + b.y) / 2;
-      const nx = dx / dist;
-      const ny = dy / dist;
-
-      // Force on a from b
-      const ax1 = a.x + nx * dist * 0.3;
-      const ay1 = a.y + ny * dist * 0.3;
-      const ax2 = a.x + nx * dist * 0.35 - ny * 6;
-      const ay2 = a.y + ny * dist * 0.35 + nx * 6;
-      const ax3 = a.x + nx * dist * 0.35 + ny * 6;
-      const ay3 = a.y + ny * dist * 0.35 - nx * 6;
-
-      ctx.beginPath();
-      ctx.moveTo(ax1, ay1);
-      ctx.lineTo(ax2, ay2);
-      ctx.lineTo(ax3, ay3);
-      ctx.closePath();
-      ctx.fillStyle = `rgba(140,180,255,${alpha * 0.7})`;
-      ctx.fill();
+      // Small particle dots along the line (flow visualization)
+      const steps = Math.round(dist / 0.5);
+      for (let s = 1; s < steps; s++) {
+        const frac = s / steps;
+        const px = a.x + dx * frac;
+        const py = a.y + dy * frac;
+        const dotAlpha = alpha * (0.3 + 0.3 * Math.sin(frac * 10 + performance.now()*0.001));
+        ctx.beginPath();
+        ctx.arc(px, py, 0.008, 0, Math.PI*2);
+        ctx.fillStyle = `rgba(180,220,255,${dotAlpha})`;
+        ctx.fill();
+      }
     }
   }
 }
@@ -1995,8 +2011,8 @@ function loop(timestamp) {
       }
     }
 
-    // Ghost placement preview (in world space)
-    if (mouseDown) {
+    // Ghost placement preview (only with selected type)
+    if (mouseDown && selectedStarType !== null) {
       const sw = screenToWorld(mouseStartX, mouseStartY);
       const ew = screenToWorld(mouseX, mouseY);
       const ldx = sw.x - ew.x;
@@ -2110,7 +2126,7 @@ function loop(timestamp) {
     speedLine = `速度 ${speed.toFixed(2)} AU/yr · ${(speed*4.74).toFixed(1)} km/s`;
 
     const lines = [hoveredBody.name, typeLine, massLine, sizeLine, speedLine];
-    const fontSize = 11, lineH = 15, padX = 10, padY = 7;
+    const fontSize = 13, lineH = 17, padX = 12, padY = 9;
     ctx.font = `${fontSize}px Georgia, serif`;
     const tw = Math.max(...lines.map(l => ctx.measureText(l).width)) + padX * 2;
     const th = lines.length * lineH + padY * 2;
@@ -2287,18 +2303,15 @@ canvas.addEventListener('mouseup', (e) => {
   const dist = Math.sqrt(dx * dx + dy * dy);
   const dt = Math.max(performance.now() - mouseStartTime, 1);
 
-  // Only create body if mouse didn't move too far
-  const wp = screenToWorld(mouseStartX, mouseStartY);
-
-  // Use selected catalog type, or random
-  let mass, colorHint, bodyName, isBH;
-  if (selectedStarType !== null) {
-    const cat = bodyTypes[selectedStarType];
-    mass = cat.mass; colorHint = cat.color; bodyName = cat.name; isBH = cat.isBH;
-  } else {
-    mass = 0.05 + Math.random() * 1.5;
-    colorHint = null; bodyName = undefined; isBH = false;
+  // Require a star type to be selected
+  if (selectedStarType === null) {
+    mouseDown = false;
+    return;
   }
+
+  const wp = screenToWorld(mouseStartX, mouseStartY);
+  const cat = bodyTypes[selectedStarType];
+  const mass = cat.mass, colorHint = cat.color, bodyName = cat.name, isBH = cat.isBH;
 
   if (dist < 8) {
     // Click: create body in world space with orbital velocity
@@ -2326,7 +2339,7 @@ canvas.addEventListener('mouseup', (e) => {
     bodies.push(new Body(wp.x, wp.y, vx, vy, mass, colorHint, bodyName, isBH));
   } else {
     // Drag: slingshot — drag backward to launch forward
-    const vScale = 0.05 / zoom;
+    const vScale = 0.08 / zoom;
     bodies.push(new Body(wp.x, wp.y, -dx*vScale, -dy*vScale, mass, colorHint, bodyName, isBH));
   }
 });
@@ -2406,34 +2419,26 @@ canvas.addEventListener('touchend', (e) => {
   const dy = mouseY - mouseStartY;
   const dist = Math.sqrt(dx * dx + dy * dy);
 
+  if (selectedStarType === null) { mouseDown = false; return; }
+
   const wp = screenToWorld(mouseStartX, mouseStartY);
-  let mass, colorHint, bodyName, isBH;
-  if (selectedStarType !== null) {
-    const cat = bodyTypes[selectedStarType];
-    mass = cat.mass; colorHint = cat.color; bodyName = cat.name; isBH = cat.isBH;
-  } else {
-    mass = 0.05 + Math.random() * 1.5; colorHint = null; bodyName = undefined; isBH = false;
-  }
+  const cat = bodyTypes[selectedStarType];
+  const mass = cat.mass, colorHint = cat.color, bodyName = cat.name, isBH = cat.isBH;
 
   if (dist < 8) {
-    let dominantBody = null;
-    let maxForce = 0;
+    let dominantBody = null, maxForce = 0;
     for (const b of bodies) {
-      const ddx = wp.x - b.x;
-      const ddy = wp.y - b.y;
-      const dSq = ddx*ddx + ddy*ddy + 0.01;
-      const force = G * b.mass / dSq;
+      const ddx = wp.x - b.x, ddy = wp.y - b.y;
+      const force = G*b.mass/(ddx*ddx + ddy*ddy + 0.01);
       if (force > maxForce) { maxForce = force; dominantBody = b; }
     }
     let vx = 0, vy = 0;
     if (dominantBody && maxForce > 0.001) {
-      const ddx = wp.x - dominantBody.x;
-      const ddy = wp.y - dominantBody.y;
+      const ddx = wp.x - dominantBody.x, ddy = wp.y - dominantBody.y;
       const distTo = Math.sqrt(ddx*ddx + ddy*ddy);
-      const vCirc = Math.sqrt(G * dominantBody.mass / Math.max(distTo, 0.1));
+      const vCirc = Math.sqrt(G*dominantBody.mass/Math.max(distTo,0.1));
       const angle = Math.atan2(ddy, ddx);
-      vx = -Math.sin(angle)*vCirc;
-      vy = Math.cos(angle)*vCirc;
+      vx = -Math.sin(angle)*vCirc; vy = Math.cos(angle)*vCirc;
     }
     bodies.push(new Body(wp.x, wp.y, vx, vy, mass, colorHint, bodyName, isBH));
   } else {
@@ -2579,6 +2584,14 @@ document.getElementById('toggle-relativity').addEventListener('click', function(
   this.classList.toggle('on', showRelativity);
 });
 
+const gridQualityBtn = document.getElementById('toggle-grid-quality');
+gridQualityBtn.textContent = gridLabels[gridQuality];
+gridQualityBtn.addEventListener('click', function() {
+  gridQuality = (gridQuality + 1) % 4;
+  this.textContent = gridLabels[gridQuality];
+  fieldGrid.vertices = null;
+});
+
 // Keyboard shortcuts
 window.addEventListener('keydown', (e) => {
   switch (e.key.toLowerCase()) {
@@ -2598,6 +2611,11 @@ window.addEventListener('keydown', (e) => {
     case 'e':
       showRelativity = !showRelativity;
       document.getElementById('toggle-relativity').classList.toggle('on', showRelativity);
+      break;
+    case 'q':
+      gridQuality = (gridQuality + 1) % 4;
+      gridQualityBtn.textContent = gridLabels[gridQuality];
+      fieldGrid.vertices = null;
       break;
     case '0':
       resetCamera();
