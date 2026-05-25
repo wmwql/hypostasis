@@ -520,8 +520,8 @@ function drawFrame(params, dt) {
   }
 
   // ── 流场粒子 ──
-  if (showParticles) {
   const flowBaseX = camX, flowBaseY = camY;
+  if (showParticles) {
   for (const p of particles) {
     // 粒子在世界空间的位置
     const wx = camX + p.x / zoom;
