@@ -67,12 +67,118 @@
     transition: color 0.4s;
   }
   .layer-label.structure { color: rgba(200,180,255,0.7); }
+
+  #help-toggle {
+    position: fixed; top: 20px; left: 24px; z-index: 20;
+    width: 32px; height: 32px; border-radius: 50%;
+    border: 1px solid rgba(255,255,255,0.2);
+    background: rgba(255,255,255,0.06);
+    color: rgba(255,255,255,0.45);
+    font-size: 0.9rem;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; transition: all 0.35s;
+    pointer-events: all; font-family: 'Georgia', serif; line-height: 1;
+  }
+  #help-toggle:hover, #help-toggle.open {
+    background: rgba(255,255,255,0.14); color: #fff;
+    border-color: rgba(255,255,255,0.4);
+    box-shadow: 0 0 18px rgba(200,180,255,0.1);
+  }
+  #help-panel {
+    position: fixed; top: 54px; left: 24px; z-index: 19;
+    background: rgba(12,12,30,0.92);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 10px; padding: 16px 18px;
+    display: flex; flex-direction: column; gap: 14px;
+    min-width: 190px; max-width: calc(100vw - 48px);
+    opacity: 0; visibility: hidden;
+    transform: translateY(-8px);
+    transition: all 0.3s ease;
+    pointer-events: none;
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  }
+  #help-panel.visible {
+    opacity: 1; visibility: visible;
+    transform: translateY(0); pointer-events: all;
+  }
+  #help-title {
+    color: rgba(255,255,255,0.75);
+    font-size: 0.8rem; letter-spacing: 0.12em;
+    padding-bottom: 8px;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+  }
+  .help-section { display: flex; flex-direction: column; gap: 5px; }
+  .help-label {
+    color: rgba(255,255,255,0.35);
+    font-size: 0.6rem; letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .help-row {
+    color: rgba(255,255,255,0.5); font-size: 0.68rem;
+    letter-spacing: 0.05em;
+    display: flex; align-items: center; gap: 6px;
+  }
+  kbd {
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 3px;
+    padding: 1px 6px;
+    font-family: 'Courier New', monospace;
+    font-size: 0.65rem;
+    color: rgba(255,255,255,0.65);
+    white-space: nowrap;
+  }
+  .ctrl-btn {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.12);
+    color: rgba(255,255,255,0.5);
+    padding: 5px 12px; border-radius: 12px;
+    font-family: inherit; font-size: 0.68rem;
+    letter-spacing: 0.06em;
+    cursor: pointer;
+    transition: all 0.3s;
+  }
+  .ctrl-btn.on {
+    background: rgba(255,255,255,0.12);
+    color: rgba(255,255,255,0.75);
+    border-color: rgba(255,255,255,0.3);
+  }
+
+  @media (max-width: 768px) {
+    #help-toggle { top: 12px; left: 10px; width: 28px; height: 28px; font-size: 0.8rem; }
+    #help-panel { top: 46px; left: 10px; min-width: 180px; padding: 12px 14px; }
+  }
 </style>
 </head>
 <body>
 
 <canvas id="c"></canvas>
 <canvas id="minimap" width="140" height="100"></canvas>
+
+<div id="help-toggle" title="操作说明">?</div>
+<div id="help-panel">
+  <div id="help-title">操作</div>
+  <div class="help-section">
+    <div class="help-label">快捷操作</div>
+    <div class="help-row"><kbd>拖拽</kbd> 漫游</div>
+    <div class="help-row"><kbd>滚轮</kbd> 缩放</div>
+    <div class="help-row"><kbd>WASD / 方向键</kbd> 平移</div>
+  </div>
+  <div class="help-section">
+    <div class="help-label">键盘</div>
+    <div class="help-row"><kbd>G</kbd> 粒子</div>
+    <div class="help-row"><kbd>H</kbd> 几何图案</div>
+    <div class="help-row"><kbd>B</kbd> 背景渐变</div>
+    <div class="help-row"><kbd>L</kbd> 结构层</div>
+    <div class="help-row"><kbd>R</kbd> 随机跳跃</div>
+    <div class="help-row"><kbd>F</kbd> 原点</div>
+  </div>
+  <div class="help-section">
+    <button class="ctrl-btn on" id="toggle-particles">粒子</button>
+    <button class="ctrl-btn on" id="toggle-geo">几何图案</button>
+    <button class="ctrl-btn on" id="toggle-bg">背景渐变</button>
+  </div>
+</div>
 
 <div id="layer-indicator">
   <div class="layer-dot" id="layer-dot"></div>
@@ -206,6 +312,29 @@ function setLayerMode(mode) {
     document.getElementById('region-name').textContent = currentRegionName;
   }
 }
+
+// ── Help toggle ─────────────────────────
+let helpOpen = false;
+const helpToggle = document.getElementById('help-toggle');
+const helpPanel = document.getElementById('help-panel');
+helpToggle.addEventListener('click', () => {
+  helpOpen = !helpOpen;
+  helpPanel.classList.toggle('visible', helpOpen);
+  helpToggle.classList.toggle('open', helpOpen);
+});
+
+// ── Display toggles ──────────────────────
+let showParticles = true, showGeo = true, showBg = true;
+
+document.getElementById('toggle-particles').addEventListener('click', function() {
+  showParticles = !showParticles; this.classList.toggle('on', showParticles);
+});
+document.getElementById('toggle-geo').addEventListener('click', function() {
+  showGeo = !showGeo; this.classList.toggle('on', showGeo);
+});
+document.getElementById('toggle-bg').addEventListener('click', function() {
+  showBg = !showBg; this.classList.toggle('on', showBg);
+});
 
 // ═══════════════════════════════════════════════════════════
 // 潜空间参数引擎
@@ -375,17 +504,23 @@ function drawFrame(params, dt) {
     return;
   }
   // ── 背景渐变 ──
-  const bgGrad = ctx.createLinearGradient(0, 0, W, H);
-  const h1 = params.baseHue + params.hueShift * 0.5;
-  const h2 = params.baseHue + params.hueShift;
-  const h3 = params.accentHue;
-  bgGrad.addColorStop(0, `hsl(${h1},${params.sat*100}%,${params.light*30}%)`);
-  bgGrad.addColorStop(0.5, `hsl(${h2},${params.sat*90}%,${params.light*50}%)`);
-  bgGrad.addColorStop(1, `hsl(${h3},${params.sat*60}%,${params.light*20}%)`);
-  ctx.fillStyle = bgGrad;
-  ctx.fillRect(0, 0, W, H);
+  if (showBg) {
+    const bgGrad = ctx.createLinearGradient(0, 0, W, H);
+    const h1 = params.baseHue + params.hueShift * 0.5;
+    const h2 = params.baseHue + params.hueShift;
+    const h3 = params.accentHue;
+    bgGrad.addColorStop(0, `hsl(${h1},${params.sat*100}%,${params.light*30}%)`);
+    bgGrad.addColorStop(0.5, `hsl(${h2},${params.sat*90}%,${params.light*50}%)`);
+    bgGrad.addColorStop(1, `hsl(${h3},${params.sat*60}%,${params.light*20}%)`);
+    ctx.fillStyle = bgGrad;
+    ctx.fillRect(0, 0, W, H);
+  } else {
+    ctx.fillStyle = '#080810';
+    ctx.fillRect(0, 0, W, H);
+  }
 
   // ── 流场粒子 ──
+  if (showParticles) {
   const flowBaseX = camX, flowBaseY = camY;
   for (const p of particles) {
     // 粒子在世界空间的位置
@@ -435,8 +570,10 @@ function drawFrame(params, dt) {
     ctx.fill();
     ctx.shadowBlur = 0;
   }
+  } // end showParticles
 
   // ── 几何图案层 —— 由潜空间参数决定 ──
+  if (showGeo) {
   ctx.globalAlpha = 0.22;
   const geoCount = Math.floor(params.geoDensity * 40);
   for (let i = 0; i < geoCount; i++) {
@@ -519,6 +656,7 @@ function drawFrame(params, dt) {
     }
     ctx.globalAlpha = 1;
   }
+  } // end showGeo
 
   // ── 暗角 ──
   const vg = ctx.createRadialGradient(W/2, H/2, Math.min(W,H)*0.5, W/2, H/2, Math.max(W,H)*0.8);
@@ -665,6 +803,18 @@ window.addEventListener('keydown', (e) => {
       break;
     case 'l':
       setLayerMode(layerMode === 'manifest' ? 'structure' : 'manifest');
+      break;
+    case 'g':
+      showParticles = !showParticles;
+      document.getElementById('toggle-particles').classList.toggle('on', showParticles);
+      break;
+    case 'h':
+      showGeo = !showGeo;
+      document.getElementById('toggle-geo').classList.toggle('on', showGeo);
+      break;
+    case 'b':
+      showBg = !showBg;
+      document.getElementById('toggle-bg').classList.toggle('on', showBg);
       break;
     case '0':
       targetZoom = Math.min(8, zoom * 1.5);
