@@ -370,43 +370,84 @@
     border-color: rgba(255,255,255,0.3);
   }
 
+  /* ── Mobile zoom slider ──────────────────── */
+  #mobile-zoom {
+    display: none;
+    position: fixed; bottom: 8px; right: 54px; z-index: 20;
+    width: 100px; height: 32px;
+    pointer-events: all;
+  }
+  #mobile-zoom input { width: 100%; accent-color: rgba(140,200,255,0.5); }
+  #mobile-reset {
+    display: none;
+    position: fixed; bottom: 10px; right: 8px; z-index: 20;
+    width: 36px; height: 36px; border-radius: 50%;
+    border: 1px solid rgba(255,255,255,0.2);
+    background: rgba(10,10,30,0.85);
+    color: rgba(255,255,255,0.5);
+    font-size: 0.9rem; cursor: pointer;
+    display: none; align-items: center; justify-content: center;
+    pointer-events: all; transition: all 0.2s;
+  }
+  #mobile-reset:active { background: rgba(255,255,255,0.15); color: #fff; }
+
+  /* ── Landscape orientation tweak ──────── */
+  @media (max-height: 500px) {
+    #ui { bottom: 8px; gap: 2px; }
+    #title { font-size: 1rem; }
+    #subtitle { display: none; }
+    #hint { font-size: 0.5rem; }
+    #star-panel { bottom: 44px; }
+  }
+
   /* ── Mobile ──────────────────────────── */
   @media (max-width: 768px) {
     #title { font-size: 1.15rem; letter-spacing: 0.1em; }
     #subtitle { font-size: 0.62rem; }
 
-    #ui { bottom: 20px; gap: 6px; }
-    #hint { font-size: 0.62rem; text-align: center; max-width: 88vw; line-height: 1.5; }
-    #scene-menu { top: 155px; left: 4px; gap: 2px; padding: 16px 3px 16px 6px; }
+    #ui { bottom: 48px; gap: 4px; }
+    #hint { font-size: 0.55rem; text-align: center; max-width: 88vw; line-height: 1.4; }
+    #scene-menu { top: 140px; left: 4px; gap: 2px; padding: 14px 3px 14px 6px; }
     .mode-btn { padding: 0; font-size: 0.6rem; }
 
     #info { top: 12px; right: 12px; font-size: 0.6rem; line-height: 1.5; }
     #event-log { top: 82px; right: 12px; max-width: 220px; }
-    #milestone-panel { top: 240px; left: 6px; }
+    #milestone-panel { top: 220px; left: 6px; }
     .milestone-line { font-size: 0.45rem; }
     .event-line { font-size: 0.6rem; }
 
-    #help-toggle { top: 12px; left: 10px; width: 28px; height: 28px; font-size: 0.8rem; }
-    #help-panel { top: 46px; left: 10px; min-width: 180px; padding: 12px 14px; }
-    #star-panel { top: 200px; right: 2px; padding: 4px; }
-    #star-panel-title { font-size: 0.48rem; }
-    #star-list { grid-template-columns: repeat(2, 1fr); gap: 3px; max-height: 170px; }
-    .star-entry { width: 46px; height: 46px; font-size: 0.42rem; }
-    .star-entry-orb { width: 20px; height: 20px; }
+    #help-toggle { top: 12px; right: 12px; left: auto; width: 28px; height: 28px; font-size: 0.8rem; }
+    #help-panel { top: 46px; right: 8px; left: auto; min-width: 180px; padding: 12px 14px; }
+
+    #star-panel { top: auto; bottom: 50px; right: 8px; left: 8px; padding: 6px; width: auto; }
+    #star-panel-title { font-size: 0.5rem; }
+    #star-panel-header { padding-bottom: 4px; margin-bottom: 3px; }
+    #star-list { grid-template-columns: repeat(9, 1fr); gap: 4px; max-height: none; overflow-x: auto; overflow-y: hidden; padding-bottom: 2px; flex-wrap: nowrap; }
+    .star-entry { width: 56px; height: 56px; flex-shrink: 0; font-size: 0.45rem; }
+    .star-entry-orb { width: 24px; height: 24px; }
+    #star-panel-toggle { display: none; }
     .ctrl-group input[type="range"] { width: 50px; }
+
+    #mobile-zoom { display: block; }
+    #mobile-reset { display: flex; }
   }
 
   @media (max-width: 400px) {
     #title { font-size: 1rem; }
-    #subtitle { font-size: 0.55rem; display: none; }
-    #scene-menu { top: 125px; left: 2px; gap: 2px; padding: 14px 2px 14px 5px; }
-    .mode-btn { padding: 0; font-size: 0.52rem; }
-    #hint { display: none; }
-    #help-toggle { top: 8px; left: 6px; width: 26px; height: 26px; font-size: 0.75rem; }
-    #help-panel { top: 40px; left: 6px; min-width: 155px; padding: 10px 12px; gap: 10px; }
-    #info { top: 8px; right: 8px; }
+    #subtitle { font-size: 0.55rem; }
+    #scene-menu { top: 120px; left: 2px; gap: 1px; padding: 12px 2px 12px 4px; }
+    .mode-btn { padding: 0; font-size: 0.5rem; }
+    #hint { font-size: 0.48rem; }
+    #help-toggle { top: 8px; right: 6px; left: auto; width: 26px; height: 26px; font-size: 0.75rem; }
+    #help-panel { top: 40px; right: 4px; left: auto; min-width: 155px; padding: 10px 12px; gap: 10px; }
+    #info { top: 8px; right: 8px; font-size: 0.5rem; }
     #event-log { top: 62px; right: 8px; max-width: 170px; }
     .event-line { font-size: 0.5rem; }
+    #star-list { grid-template-columns: repeat(9, 1fr); gap: 3px; }
+    .star-entry { width: 44px; height: 44px; font-size: 0.4rem; }
+    .star-entry-orb { width: 20px; height: 20px; }
+    #ui { bottom: 44px; }
+    #star-panel { bottom: 46px; }
   }
 </style>
 </head>
@@ -414,10 +455,13 @@
 
 <canvas id="c"></canvas>
 
+<div id="mobile-zoom"><input type="range" id="zoom-slider" min="12" max="800" value="100" title="缩放"></div>
+<button id="mobile-reset" title="重置视角">⊙</button>
+
 <div id="ui">
   <div id="title">万象引力 · 星体</div>
   <div id="subtitle">牛顿引力下的 N 体宇宙</div>
-  <div id="hint">先选天体格 · 点击放置 · 拖拽弹射 · 右键消除 · <span style="color:rgba(255,255,255,0.5)">?</span> 操作</div>
+  <div id="hint">先选天体 · 点击放置 · 拖拽弹射 · 长按消除</div>
 </div>
 
 <div id="layer-indicator">
@@ -1616,6 +1660,32 @@ let panStartMX = 0, panStartMY = 0;
 let pinchDist0 = 0;
 let pinchZoom0 = 1;
 let pinchCamX0 = 0, pinchCamY0 = 0;
+let longPressTimer = null;
+let longPressTarget = null;       // body to delete on long-press
+let longPressIndicator = 0;       // 0..1 fade-in for red ring
+
+// ── Mobile zoom slider ───────────────────
+const zoomSlider = document.getElementById('zoom-slider');
+if (zoomSlider) {
+  zoomSlider.addEventListener('input', () => {
+    zoom = ZOOM_MIN + (parseInt(zoomSlider.value) / 100) * (ZOOM_MAX - ZOOM_MIN);
+    fieldGrid.vertices = null;
+  });
+  // Sync slider to actual zoom periodically (pinch can change it)
+  setInterval(() => {
+    const pct = Math.round(((zoom - ZOOM_MIN) / (ZOOM_MAX - ZOOM_MIN)) * 100);
+    zoomSlider.value = Math.max(0, Math.min(100, pct));
+  }, 500);
+}
+
+// ── Mobile reset button ──────────────────
+const mobileReset = document.getElementById('mobile-reset');
+if (mobileReset) {
+  mobileReset.addEventListener('click', () => {
+    resetCamera();
+    fieldGrid.vertices = null;
+  });
+}
 let pinchMidX = 0, pinchMidY = 0;
 
 // ── Event notification system ───────────────────
@@ -2086,6 +2156,26 @@ function loop(timestamp) {
     }
   }
 
+  // Long-press delete indicator (red pulsing ring)
+  if (longPressTarget && longPressIndicator > 0) {
+    longPressIndicator = Math.max(0, longPressIndicator - 0.03);
+    const lp = worldToScreen(longPressTarget.x, longPressTarget.y);
+    const lr = longPressTarget.radius * PX_PER_AU * zoom * 1.8;
+    ctx.beginPath();
+    ctx.arc(lp.x, lp.y, lr, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(255,60,30,${longPressIndicator * 0.7})`;
+    ctx.lineWidth = 3;
+    ctx.setLineDash([6, 4]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    // Inner warning circle
+    ctx.beginPath();
+    ctx.arc(lp.x, lp.y, lr * 0.5, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(255,100,80,${longPressIndicator * 0.9})`;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  }
+
   // Hover tooltip (screen space) — with real physical properties
   if (hoveredBody) {
     const sp = worldToScreen(hoveredBody.x, hoveredBody.y);
@@ -2367,6 +2457,22 @@ canvas.addEventListener('touchstart', (e) => {
     mouseStartX = mouseX;
     mouseStartY = mouseY;
     mouseStartTime = performance.now();
+    // Start long-press timer
+    clearTimeout(longPressTimer);
+    longPressTarget = null;
+    longPressTimer = setTimeout(() => {
+      // Long press detected: find nearest body
+      const wp = screenToWorld(mouseStartX, mouseStartY);
+      let nearest = null, bestDist = Infinity;
+      for (const b of bodies) {
+        const d = Math.hypot(b.x - wp.x, b.y - wp.y);
+        if (d < b.radius * 3 && d < bestDist) { nearest = b; bestDist = d; }
+      }
+      if (nearest) {
+        longPressTarget = nearest;
+        longPressIndicator = 1;
+      }
+    }, 600);
   }
 }, { passive: false });
 
@@ -2397,6 +2503,12 @@ canvas.addEventListener('touchmove', (e) => {
   } else if (e.touches.length === 1) {
     mouseX = e.touches[0].clientX;
     mouseY = e.touches[0].clientY;
+    // Cancel long-press if moved too much
+    const md = Math.hypot(mouseX - mouseStartX, mouseY - mouseStartY);
+    if (md > 12 && longPressTarget === null) {
+      clearTimeout(longPressTimer);
+      longPressIndicator = 0;
+    }
   }
 }, { passive: false });
 
@@ -2415,11 +2527,24 @@ canvas.addEventListener('touchend', (e) => {
   }
   if (!mouseDown) return;
   mouseDown = false;
+  clearTimeout(longPressTimer);
+
+  // Long-press delete
+  if (longPressTarget) {
+    const idx = bodies.indexOf(longPressTarget);
+    if (idx >= 0) { bodies.splice(idx, 1); fieldGrid.vertices = null; }
+    longPressTarget = null;
+    longPressIndicator = 0;
+    return;
+  }
+  longPressTarget = null;
+  longPressIndicator = 0;
+
   const dx = mouseX - mouseStartX;
   const dy = mouseY - mouseStartY;
   const dist = Math.sqrt(dx * dx + dy * dy);
 
-  if (selectedStarType === null) { mouseDown = false; return; }
+  if (selectedStarType === null) return;
 
   const wp = screenToWorld(mouseStartX, mouseStartY);
   const cat = bodyTypes[selectedStarType];
