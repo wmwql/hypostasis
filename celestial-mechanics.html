@@ -391,6 +391,28 @@
   }
   #mobile-reset:active { background: rgba(255,255,255,0.15); color: #fff; }
 
+  /* Pause indicator */
+  #pause-indicator {
+    position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%);
+    z-index: 20; pointer-events: none;
+    color: rgba(255,255,255,0.7);
+    font-size: 1.4rem; letter-spacing: 0.2em;
+    font-family: 'Georgia', serif;
+    opacity: 0; transition: opacity 0.3s;
+  }
+  #pause-indicator.visible { opacity: 1; }
+
+  /* Tracking indicator */
+  #track-indicator {
+    position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%);
+    z-index: 15; pointer-events: none;
+    color: rgba(255,220,140,0.7);
+    font-size: 0.72rem; letter-spacing: 0.08em;
+    font-family: 'Courier New', monospace;
+    opacity: 0; transition: opacity 0.3s;
+  }
+  #track-indicator.visible { opacity: 1; }
+
   /* ── Landscape orientation tweak ──────── */
   @media (max-height: 500px) {
     #ui { bottom: 8px; gap: 2px; }
@@ -464,6 +486,9 @@
   <div id="hint">先选天体 · 点击放置 · 拖拽弹射 · 长按消除</div>
 </div>
 
+<div id="pause-indicator">⏸ 已暂停</div>
+<div id="track-indicator"></div>
+
 <div id="layer-indicator">
   <div class="layer-dot" id="layer-dot"></div>
   <span class="layer-label" id="layer-label">表象</span>
@@ -507,6 +532,9 @@
   <button class="mode-btn" data-mode="roche">潮汐撕裂</button>
   <button class="mode-btn" data-mode="impact">天地撞击</button>
   <button class="mode-btn" data-mode="wanderer">流浪地球</button>
+  <button class="mode-btn" data-mode="lagrange">拉格朗日点</button>
+  <button class="mode-btn" data-mode="figure8">Figure-8</button>
+  <button class="mode-btn" data-mode="theia">月球形成</button>
 </div>
 
 <!-- Help / Controls ──────────────────────────── -->
@@ -518,10 +546,11 @@
     <div class="help-label">快捷操作</div>
     <div class="help-row"><kbd>滚轮</kbd> 缩放</div>
     <div class="help-row"><kbd>Shift</kbd>+拖拽 平移</div>
-    <div class="help-row"><kbd>双击</kbd> 重置视角</div>
     <div class="help-row"><kbd>点击</kbd> 放置星体</div>
     <div class="help-row"><kbd>拖拽</kbd> 给初速度</div>
     <div class="help-row"><kbd>右键</kbd> 消除星体</div>
+    <div class="help-row"><kbd>双击</kbd> 跟踪/取消跟踪</div>
+    <div class="help-row"><kbd>空格</kbd> 暂停/继续</div>
   </div>
   <div class="help-section">
     <div class="help-label">键盘</div>
@@ -718,25 +747,22 @@ class Starfield {
       let sx = s.x * W;
       let sy = s.y * H;
 
-      // Gravitational lensing
+      // Gravitational lensing (black holes only — avoids jitter from normal stars)
       if (lensers.length > 0) {
         for (const L of lensers) {
+          if (!L.isBH) continue;
           const dx = sx - L.sx;
           const dy = sy - L.sy;
           const dist = Math.sqrt(dx*dx + dy*dy);
-          if (dist < 1) continue; // avoid singularity at center
-          const shadowR = L.isBH ? L.radius * PX_PER_AU * zoom * 3 : 0;
-          if (L.isBH && dist < shadowR) {
-            // Stars behind the shadow get pulled to the photon ring
+          if (dist < 1) continue;
+          const shadowR = L.radius * PX_PER_AU * zoom * 3;
+          if (dist < shadowR) {
             const ringR = shadowR * 1.3;
             const nx = dx/dist, ny = dy/dist;
             sx = L.sx + nx * ringR;
             sy = L.sy + ny * ringR;
-          } else if (dist < 300) {
-            // Deflection: stronger for black holes, falls as 1/dist
-            const strength = L.isBH
-              ? L.mass * 15 / dist
-              : L.mass * 2 / (dist * dist / 100);
+          } else if (dist < 200) {
+            const strength = L.mass * 12 / dist;
             const nx = dx/dist, ny = dy/dist;
             sx += nx * strength;
             sy += ny * strength;
@@ -1049,7 +1075,7 @@ class Body {
       gradient.addColorStop(0.7, `rgba(${dr},${dg},${db},0.08)`);
       gradient.addColorStop(1, `rgba(${dr},${dg},${db},0.25)`);
       ctx.strokeStyle = gradient;
-      ctx.lineWidth = this.radius * 0.4;
+      ctx.lineWidth = Math.max(0.008, this.radius * 0.4);
       ctx.stroke();
     }
 
@@ -1126,6 +1152,9 @@ function solveGravity(bodies) {
         if (!biggerIsB) {
           b.name = other.name;
           b.color = other.color;
+          b.isBlackHole = other.isBlackHole || b.isBlackHole;
+        } else {
+          b.isBlackHole = b.isBlackHole || other.isBlackHole;
         }
         // If near-equal mass, blend colors
         if (Math.min(bMass0, oMass0) / Math.max(bMass0, oMass0) > 0.3) {
@@ -1300,7 +1329,8 @@ function computeEnergy(bodies) {
     for (let j = i + 1; j < n; j++) {
       const dx = bodies[j].x - b.x;
       const dy = bodies[j].y - b.y;
-      const dist = Math.sqrt(dx * dx + dy * dy + 100);
+      const effSoft = Math.max(0.015, Math.min(b.radius, bodies[j].radius) * 1.5);
+      const dist = Math.sqrt(dx * dx + dy * dy + effSoft * effSoft);
       potential -= G * b.mass * bodies[j].mass / dist;
     }
   }
@@ -1334,16 +1364,16 @@ const sceneDefs = {
     name:'星团引力', desc:'密集星团中数十颗恒星在引力网中追逐——秩序与混沌的边缘',
     g:1,
     bodies: [
-      { type:'body', m:4, c:{r:200,g:210,b:255}, n:'星团核' },
-      { type:'orbital', count:25, parent:0, dist:[1.5,11.5], mass:[0.02,0.17], vScatter:0.25, vScale:[0.85,1.15] }
+      { type:'body', m:15, c:{r:200,g:210,b:255}, n:'星团核' },
+      { type:'orbital', count:25, parent:0, dist:[2,12], mass:[0.02,0.12], vScatter:0.08, vScale:[0.92,1.08] }
     ]
   },
   spiral: {
     name:'旋涡星系', desc:'旋涡星系——引力编织的宇宙螺旋',
     g:1,
     bodies: [
-      { type:'body', m:6, c:{r:255,g:240,b:200}, n:'银心' },
-      { type:'spiral', arms:3, perArm:8, dist:[2.5,14.5], parent:0, mass:[0.02,0.1], vScale:0.9 }
+      { type:'body', m:20, c:{r:255,g:240,b:200}, n:'银心' },
+      { type:'spiral', arms:3, perArm:10, dist:[2.5,16], parent:0, mass:[0.02,0.08], vScale:1.0 }
     ]
   },
   collision: {
@@ -1424,12 +1454,17 @@ const sceneDefs = {
     ]
   },
   threebody: {
-    name:'三体问题', desc:'三体问题的拉格朗日等边三角形解——确定性中的不可预测性',
-    g:1.5,
+    name:'三体问题', desc:'三体星系 · 恒纪元与乱纪元的无尽轮回 — 刘慈欣《三体》',
+    g:1.5, event:'三体星系 · 文明在混沌中寻找恒纪元...',
     bodies: [
       { type:'threebody', mass:[0.8,2.0], radius:[3,6],
         colors:[{r:255,g:100,b:70},{r:90,g:200,b:255},{r:100,g:255,b:140}],
         names:['α','β','γ'] }
+    ],
+    events: [
+      { type:'proximity', a:'α', b:'β', dist:2, once:true, msg:'α 与 β 相互捕获 · 双星系统形成' },
+      { type:'proximity', a:'α', b:'γ', dist:1.5, once:true, msg:'α 与 γ 危险接近 · 引力弹弓！' },
+      { type:'proximity', a:'β', b:'γ', dist:1.5, once:true, msg:'β 与 γ 危险接近 · 轨道剧变' },
     ]
   },
   blackhole: {
@@ -1441,6 +1476,39 @@ const sceneDefs = {
       { type:'elliptical', count:1, parent:0, a:4.5, e:0.50, mass:0.5, name:'S0-2', color:{r:220,g:210,b:180} },
       { type:'elliptical', count:1, parent:0, a:7.0, e:0.35, mass:0.3, name:'S0-8', color:{r:240,g:180,b:140} },
       { type:'elliptical', count:1, parent:0, a:9.5, e:0.25, mass:0.2, name:'S0-13', color:{r:180,g:220,b:200} }
+    ]
+  },
+  lagrange: {
+    name:'拉格朗日点', desc:'特洛伊小行星群 · 木星 L4/L5 拉格朗日点——三体问题的稳定解',
+    g:1, event:'拉格朗日点 · 特洛伊小行星在 L4/L5 驻留',
+    bodies: [
+      { type:'lagrange' }
+    ],
+    events: [
+      { type:'time', at:11.86, msg:'♃ 木星完成第 1 圈公转 · 特洛伊群仍驻留 L4/L5' },
+      { type:'time', at:23.72, msg:'♃ 木星完成第 2 圈 · 拉格朗日点稳定性验证' },
+    ]
+  },
+  figure8: {
+    name:'Figure-8', desc:'Chenciner-Montgomery 周期解——三个等质量天体在同一 ∞ 轨道上追逐',
+    g:1, event:'Figure-8 · 2000年发现的周期三体解',
+    bodies: [
+      { type:'figure8' }
+    ]
+  },
+  theia: {
+    name:'月球形成', desc:'忒伊亚假说——火星大小天体斜撞原始地球，碎片形成月球',
+    g:1, event:'忒伊亚假说 · 45亿年前的创世撞击',
+    bodies: [
+      { type:'body', m:0.9, c:{r:80,g:150,b:240}, n:'原始地球' },
+      { type:'aimed', dist:6, speed:3.5, scatter:0.08, mass:0.1, c:{r:200,g:140,b:80}, n:'忒伊亚' }
+    ],
+    events: [
+      { type:'proximity', a:'忒伊亚', b:'原始地球', dist:1.5, once:true, msg:'☄ 忒伊亚进入地球引力范围' },
+      { type:'proximity', a:'忒伊亚', b:'原始地球', dist:0.4, once:true,
+        spawn:{ count:50, speed:4, life:3, color:'255,180,80', size:0.012 },
+        spawn2:{ count:30, speed:2.5, life:4, color:'200,160,120', size:0.008 },
+        msg:'💥 斜角撞击！熔融碎片抛射 · 月球将从碎片盘中凝聚' }
     ]
   }
 };
@@ -1580,6 +1648,55 @@ function buildScene(scene) {
       continue;
     }
 
+    if (spec.type === 'lagrange') {
+      // Sun + Jupiter at 5.2 AU + Trojan asteroids at L4/L5
+      const sunMass = 1.0;
+      const jupMass = 9.55e-4;
+      const jupDist = 5.2;
+      const jupAngle = Math.random() * Math.PI * 2;
+      const jupVCirc = Math.sqrt(G * sunMass / jupDist);
+      bodies.push(new Body(CX, CY, 0, 0, sunMass, {r:255,g:245,b:200}, '太阳'));
+      bodies.push(new Body(CX + Math.cos(jupAngle)*jupDist, CY + Math.sin(jupAngle)*jupDist,
+        -Math.sin(jupAngle)*jupVCirc, Math.cos(jupAngle)*jupVCirc, jupMass, {r:210,g:175,b:120}, '木星'));
+      // L4: 60° ahead of Jupiter, L5: 60° behind
+      const trojanColors = [{r:180,g:160,b:130},{r:160,g:170,b:140},{r:170,g:150,b:120}];
+      for (let li = 0; li < 2; li++) {
+        const lAngle = jupAngle + (li === 0 ? Math.PI/3 : -Math.PI/3);
+        const lName = li === 0 ? 'L4' : 'L5';
+        for (let ti = 0; ti < 4; ti++) {
+          const scatter = 0.3;
+          const tAngle = lAngle + (Math.random()-0.5)*scatter;
+          const tDist = jupDist + (Math.random()-0.5)*0.6;
+          const tVCirc = Math.sqrt(G * sunMass / tDist);
+          bodies.push(new Body(CX + Math.cos(tAngle)*tDist, CY + Math.sin(tAngle)*tDist,
+            -Math.sin(tAngle)*tVCirc, Math.cos(tAngle)*tVCirc,
+            1e-7 + Math.random()*5e-7, trojanColors[ti%3], `${lName}-${ti+1}`));
+        }
+      }
+      continue;
+    }
+
+    if (spec.type === 'figure8') {
+      // Chenciner-Montgomery figure-8 solution (normalized, then scaled)
+      // Standard initial conditions (unit period, unit G*m):
+      //   x1=(-1,0), x2=(1,0), x3=(0,0)
+      //   v1=v2=(p1,p2), v3=(-2p1,-2p2)
+      //   p1=0.347111, p2=0.532728
+      // Scale to our G and visual size
+      const fm = 1.0;
+      const scale = 3.0;
+      const gEff = G * fm;
+      const tScale = Math.sqrt(scale*scale*scale / gEff);
+      const vScale = scale / tScale;
+      const p1 = 0.347111 * vScale, p2 = 0.532728 * vScale;
+      const colors = [{r:255,g:120,b:80},{r:80,g:200,b:255},{r:120,g:255,b:150}];
+      bodies.push(new Body(CX - scale, CY, p1, p2, fm, colors[0], 'A'));
+      bodies.push(new Body(CX + scale, CY, p1, p2, fm, colors[1], 'B'));
+      bodies.push(new Body(CX, CY, -2*p1, -2*p2, fm, colors[2], 'C'));
+      emitEvent('Figure-8 · 三体在同一 ∞ 轨道上追逐');
+      continue;
+    }
+
     if (spec.type === 'threebody') {
       const S = R(spec.radius[0], spec.radius[1]);
       const mass = R(spec.mass[0], spec.mass[1]);
@@ -1604,6 +1721,13 @@ function buildScene(scene) {
         }
         emitEvent('三体 · 混沌初值 — 不可预测的舞蹈');
       }
+      // Add a planet orbiting the three-body barycenter
+      const totalMass = mass * 3;
+      const planetDist = S * 2.5;
+      const pAngle = Math.random() * Math.PI * 2;
+      const vCirc = Math.sqrt(G * totalMass / planetDist);
+      bodies.push(new Body(CX + Math.cos(pAngle)*planetDist, CY + Math.sin(pAngle)*planetDist,
+        -Math.sin(pAngle)*vCirc, Math.cos(pAngle)*vCirc, 3e-6, {r:80,g:150,b:240}, '行星'));
       continue;
     }
   }
@@ -1624,6 +1748,11 @@ let selectedStarType = null;
 let particles = [];
 let firedEvents = {}; // track once-only event IDs
 let gwChirp = null;
+let paused = false;
+let trackedBody = null;
+
+// Three-body novel state detector
+let triState = { config: '', lastChange: 0, eraStart: 0, era: '', stableCount: 0 };
 
 // ── Unified body type catalog — single source of truth ──
 const bodyTypes = [
@@ -1933,9 +2062,10 @@ function loop(timestamp) {
           const curDist = Math.sqrt(dx*dx + dy*dy);
           if (curDist < ev.dist) {
             if (ev.once) firedEvents[evId] = true;
-            // Auto-shield: prevent merge for 3 seconds after any proximity event
-            bodyA._shieldUntil = performance.now() + 3000;
-            bodyB._shieldUntil = performance.now() + 3000;
+            if (ev.spawn || ev.spawn2 || ev.kick) {
+              bodyA._shieldUntil = performance.now() + 3000;
+              bodyB._shieldUntil = performance.now() + 3000;
+            }
             if (ev.spawn) {
               const sx = bodyA.x, sy = bodyA.y;
               if (ev.spawn.from) {
@@ -1995,8 +2125,72 @@ function loop(timestamp) {
     }
   }
 
+  // ── Three-body novel state detector ──────────
+  if (currentMode === 'threebody' && !paused) {
+    const planet = bodies.find(b2 => b2.name === '行星');
+    const stars = bodies.filter(b2 => b2.name === 'α' || b2.name === 'β' || b2.name === 'γ');
+    if (planet && stars.length >= 2) {
+      const SUN_THRESH = 8;
+      const now = performance.now();
+      const dists = stars.map(s => Math.hypot(s.x - planet.x, s.y - planet.y));
+      const sunCount = dists.filter(d => d < SUN_THRESH).length;
+      const flyCount = stars.length - sunCount;
+
+      const configNames = [
+        '三飞星',
+        '一日凌空 · 二飞星',
+        '双日凌空 · 一飞星',
+        '三日凌空'
+      ];
+      const config = configNames[sunCount] || '三飞星';
+
+      if (config !== triState.config && now - triState.lastChange > 4000) {
+        triState.config = config;
+        triState.lastChange = now;
+        triState.stableCount = 0;
+
+        if (sunCount === 3) {
+          emitEvent(`三日凌空！烈焰焚世 · 文明毁灭`);
+        } else if (sunCount === 2) {
+          const flyer = stars[dists.indexOf(Math.max(...dists))];
+          emitEvent(`双日凌空 · ${flyer.name} 化为飞星`);
+        } else if (sunCount === 1) {
+          const sun = stars[dists.indexOf(Math.min(...dists))];
+          emitEvent(`${sun.name} 凌空 · 恒纪元降临？`);
+        } else {
+          emitEvent(`三飞星不动 · 极寒乱纪元 · 脱水！`);
+        }
+      }
+
+      // Era detection: stable config for a while = 恒纪元
+      if (config === triState.config) {
+        triState.stableCount++;
+      }
+      if (triState.stableCount === 300 && sunCount === 1 && triState.era !== 'stable') {
+        triState.era = 'stable';
+        triState.eraStart = simYears;
+        emitEvent(`恒纪元已持续稳定 · 文明开始浸泡复活`);
+      }
+      if (triState.era === 'stable' && config !== '一日凌空 · 二飞星') {
+        triState.era = 'chaotic';
+        const lasted = (simYears - triState.eraStart).toFixed(1);
+        emitEvent(`恒纪元结束 · 持续 ${lasted} 年 · 乱纪元再临`);
+      }
+    }
+  }
+
+  // Camera tracking
+  if (trackedBody && trackedBody.alive !== false) {
+    camX = trackedBody.x;
+    camY = trackedBody.y;
+    fieldGrid.vertices = null;
+  } else if (trackedBody) {
+    trackedBody = null;
+    document.getElementById('track-indicator').classList.remove('visible');
+  }
+
   // Physics
-  if (bodies.length > 0) {
+  if (!paused && bodies.length > 0) {
     solveGravity(bodies);
   }
 
@@ -2220,8 +2414,11 @@ function loop(timestamp) {
     ctx.font = `${fontSize}px Georgia, serif`;
     const tw = Math.max(...lines.map(l => ctx.measureText(l).width)) + padX * 2;
     const th = lines.length * lineH + padY * 2;
-    const tx = sp.x + 18;
-    const ty = sp.y - th - 14;
+    let tx = sp.x + 18;
+    let ty = sp.y - th - 14;
+    if (tx + tw > W - 10) tx = sp.x - tw - 18;
+    if (ty < 10) ty = sp.y + 18;
+    if (tx < 10) tx = 10;
 
     ctx.fillStyle = 'rgba(8,8,20,0.85)';
     ctx.strokeStyle = 'rgba(255,255,255,0.15)';
@@ -2267,14 +2464,16 @@ function loop(timestamp) {
   }
 
   // ── Particle update ──────────────────────────
-  const pdt = DT_BASE * simSpeed;
-  for (let i = particles.length - 1; i >= 0; i--) {
-    particles[i].update(pdt);
-    if (!particles[i].alive) particles.splice(i, 1);
+  if (!paused) {
+    const pdt = DT_BASE * simSpeed;
+    for (let i = particles.length - 1; i >= 0; i--) {
+      particles[i].update(pdt);
+      if (!particles[i].alive) particles.splice(i, 1);
+    }
+    simYears += DT_BASE * simSpeed;
   }
 
   // ── UI Update ───────────────────────────────
-  simYears += DT_BASE * simSpeed;
   const energy = computeEnergy(bodies);
   document.getElementById('fps').textContent = `FPS ${fps}`;
   document.getElementById('body-count').textContent = `天体 ${bodies.length}`;
@@ -2317,9 +2516,24 @@ function loop(timestamp) {
 // ═══════════════════════════════════════════════════
 // 输入处理
 // ═══════════════════════════════════════════════════
-// Double-click: reset camera
+// Double-click: track nearest body, or reset camera if none nearby
 canvas.addEventListener('dblclick', (e) => {
-  resetCamera();
+  const wp = screenToWorld(e.clientX, e.clientY);
+  let nearest = null, bestDist = Infinity;
+  for (const b of bodies) {
+    const d = Math.hypot(b.x - wp.x, b.y - wp.y);
+    if (d < b.radius * 4 && d < bestDist) { nearest = b; bestDist = d; }
+  }
+  const trackEl = document.getElementById('track-indicator');
+  if (nearest) {
+    trackedBody = nearest;
+    trackEl.textContent = `◎ 跟踪: ${nearest.name}`;
+    trackEl.classList.add('visible');
+  } else {
+    trackedBody = null;
+    trackEl.classList.remove('visible');
+    resetCamera();
+  }
   fieldGrid.vertices = null;
 });
 
@@ -2374,8 +2588,8 @@ canvas.addEventListener('mousemove', (e) => {
   mouseY = e.clientY;
 
   if (isPanning) {
-    camX = panStartCamX - (e.clientX - panStartMX) / zoom;
-    camY = panStartCamY - (e.clientY - panStartMY) / zoom;
+    camX = panStartCamX - (e.clientX - panStartMX) / (PX_PER_AU * zoom);
+    camY = panStartCamY - (e.clientY - panStartMY) / (PX_PER_AU * zoom);
     fieldGrid.vertices = null;
   }
 });
@@ -2396,6 +2610,12 @@ canvas.addEventListener('mouseup', (e) => {
   // Require a star type to be selected
   if (selectedStarType === null) {
     mouseDown = false;
+    return;
+  }
+
+  const MAX_BODIES = 100;
+  if (bodies.length >= MAX_BODIES) {
+    emitEvent(`天体数量已达上限 (${MAX_BODIES})`);
     return;
   }
 
@@ -2488,8 +2708,8 @@ canvas.addEventListener('touchmove', (e) => {
     const newMidY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
 
     // Pan
-    const panDx = (newMidX - pinchMidX) / pinchZoom0;
-    const panDy = (newMidY - pinchMidY) / pinchZoom0;
+    const panDx = (newMidX - pinchMidX) / (PX_PER_AU * pinchZoom0);
+    const panDy = (newMidY - pinchMidY) / (PX_PER_AU * pinchZoom0);
     camX = pinchCamX0 - panDx;
     camY = pinchCamY0 - panDy;
 
@@ -2505,8 +2725,9 @@ canvas.addEventListener('touchmove', (e) => {
     mouseY = e.touches[0].clientY;
     // Cancel long-press if moved too much
     const md = Math.hypot(mouseX - mouseStartX, mouseY - mouseStartY);
-    if (md > 12 && longPressTarget === null) {
+    if (md > 12) {
       clearTimeout(longPressTimer);
+      longPressTarget = null;
       longPressIndicator = 0;
     }
   }
@@ -2545,6 +2766,12 @@ canvas.addEventListener('touchend', (e) => {
   const dist = Math.sqrt(dx * dx + dy * dy);
 
   if (selectedStarType === null) return;
+
+  const MAX_BODIES = 100;
+  if (bodies.length >= MAX_BODIES) {
+    emitEvent(`天体数量已达上限 (${MAX_BODIES})`);
+    return;
+  }
 
   const wp = screenToWorld(mouseStartX, mouseStartY);
   const cat = bodyTypes[selectedStarType];
@@ -2654,9 +2881,12 @@ document.querySelectorAll('.mode-btn').forEach(btn => {
     btn.classList.add('active');
     currentMode = btn.dataset.mode;
     resetCamera();
+    trackedBody = null;
+    document.getElementById('track-indicator').classList.remove('visible');
     simYears = 0;
     particles = [];
     firedEvents = {};
+    triState = { config: '', lastChange: 0, eraStart: 0, era: '', stableCount: 0 };
     bodies = buildScene(currentMode);
     fieldGrid.vertices = null;
     // Show scene description
@@ -2719,6 +2949,12 @@ gridQualityBtn.addEventListener('click', function() {
 
 // Keyboard shortcuts
 window.addEventListener('keydown', (e) => {
+  if (e.key === ' ') {
+    e.preventDefault();
+    paused = !paused;
+    document.getElementById('pause-indicator').classList.toggle('visible', paused);
+    return;
+  }
   switch (e.key.toLowerCase()) {
     case 'g':
       showGrid = !showGrid;
@@ -2764,7 +3000,9 @@ window.addEventListener('keydown', (e) => {
     case '7': document.querySelector('[data-mode="blackhole"]').click(); break;
     case '8': document.querySelector('[data-mode="collision"]').click(); break;
     case '9': document.querySelector('[data-mode="tatooine"]').click(); break;
-    case '0': document.querySelector('[data-mode="jupiter-ignite"]').click(); break;
+    case '-': document.querySelector('[data-mode="impact"]').click(); break;
+    case '=': document.querySelector('[data-mode="wanderer"]').click(); break;
+    case '0': document.querySelector('[data-mode="roche"]').click(); break;
     case 'l':
       setLayerMode(layerMode === 'manifest' ? 'structure' : 'manifest');
       break;
