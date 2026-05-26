@@ -302,9 +302,9 @@ class WaveSystem{
     const i0=Math.floor(gx),f=gx-i0;
     return(this.h[clamp(i0,0,NX-1)]*(1-f)+this.h[clamp(i0+1,0,NX-1)]*f)*14;
   }
-  update(windU){
-    const c2=0.25,wc=0.02,vd=0.994,hd=0.998;
-    for(let i=1;i<NX-1;i++){this.vel[i]+=windU[i]*wc;this.vel[i]+=c2*(this.h[i-1]-2*this.h[i]+this.h[i+1]);}
+  update(windU,surfU){
+    const c2=0.25,wc=0.02,cc=0.012,vd=0.994,hd=0.998;
+    for(let i=1;i<NX-1;i++){this.vel[i]+=windU[i]*wc;if(surfU)this.vel[i]+=(surfU[i-1]-surfU[i+1])*cc;this.vel[i]+=c2*(this.h[i-1]-2*this.h[i]+this.h[i+1]);}
     for(let i=1;i<NX-1;i++){this.h[i]+=this.vel[i];this.vel[i]*=vd;this.h[i]*=hd;}
     this.h[0]*=0.95;this.h[NX-1]*=0.95;this.vel[0]*=0.9;this.vel[NX-1]*=0.9;
     for(const f of this.foam){
@@ -318,14 +318,32 @@ class WaveSystem{
 
 // ==================== ATMOSPHERE ====================
 class AtmosphereSystem{
-  constructor(fluid){this.fluid=fluid;this.particles=[];for(let i=0;i<450;i++)this.particles.push(this.create());}
+  constructor(fluid){
+    this.fluid=fluid;this.particles=[];
+    this.gradT=new Float32Array(NX);
+    this.anom=new Float32Array(NX);
+    for(let i=0;i<450;i++)this.particles.push(this.create());
+  }
   create(){return{x:Math.random(),y:Math.random(),trail:[],maxTrail:14,life:0,maxLife:350+Math.random()*300,temp:15,size:0.6+Math.random()*0.8}}
+  precompute(){
+    let tSum=0;
+    for(let i=0;i<NX;i++)tSum+=this.fluid.T[i];
+    const tMean=tSum/NX;
+    for(let i=1;i<NX-1;i++){
+      this.gradT[i]=(this.fluid.T[i+1]-this.fluid.T[i-1])*0.5;
+      this.anom[i]=this.fluid.T[i]-tMean;
+    }
+    this.gradT[0]=this.gradT[1];this.gradT[NX-1]=this.gradT[NX-2];
+    this.anom[0]=this.fluid.T[0]-tMean;this.anom[NX-1]=this.fluid.T[NX-1]-tMean;
+  }
   getVelocity(nx,ny){
-    const surfDT=this.fluid.T[this.fluid.idx(NX-1,0)]-this.fluid.T[this.fluid.idx(0,0)];
-    const A=clamp(surfDT*0.0012,0,0.025);
-    return[A*Math.sin(Math.PI*nx)*Math.cos(Math.PI*ny),-A*0.6*Math.cos(Math.PI*nx)*Math.sin(Math.PI*ny)];
+    const ix=clamp(Math.floor(nx*(NX-1)),0,NX-1);
+    const u=this.gradT[ix]*0.005*Math.cos(Math.PI*ny);
+    const v=this.anom[ix]*0.0006*Math.sin(Math.PI*ny);
+    return[u,v];
   }
   update(){
+    this.precompute();
     for(const p of this.particles){
       p.life++;
       if(p.life>p.maxLife||p.x<-0.02||p.x>1.02||p.y<-0.02||p.y>1.02){Object.assign(p,this.create());continue;}
@@ -461,8 +479,13 @@ class Renderer{
     this.drawTerrain(ctx);
     this.drawSky(ctx,time);
     if(vis.showAtmo)this.drawAtmo(ctx);
+    ctx.save();ctx.beginPath();
+    const clipY=this.oceanTop;
+    for(let px=0;px<=this.oceanW;px+=2){const gx=(px/this.oceanW)*NX,h=vis.showWaves?this.waves.getHeight(gx):0;px===0?ctx.moveTo(this.oceanLeft,clipY+h):ctx.lineTo(this.oceanLeft+px,clipY+h);}
+    ctx.lineTo(this.oceanRight,this.oceanBottom+5);ctx.lineTo(this.oceanLeft,this.oceanBottom+5);ctx.closePath();ctx.clip();
     if(vis.showParticles)this.drawCurrents(ctx);
     if(vis.showBio)this.drawEco(ctx,time);
+    ctx.restore();
     this.drawDepth(ctx);
     if(mouse.down&&currentTool==='force'&&this.inOcean(mouse.x,mouse.y)){
       ctx.beginPath();ctx.arc(mouse.x,mouse.y,18,0,Math.PI*2);
@@ -662,10 +685,26 @@ function setupInput(canvas,renderer,fluid,eco){
     const tip=document.getElementById('tip');
     if(renderer.inOcean(x,y)){
       const[gi,gj]=renderer.s2g(x,y);
-      const i=clamp(Math.floor(gi),0,NX-1),j=clamp(Math.floor(gj),0,NY-1);
-      const k=j*NX+i,depth=Math.floor((j/(NY-1))*5000);
-      tip.textContent=`${depth}m  ${fluid.T[k].toFixed(1)}°C  N:${eco.nutrients[k].toFixed(2)}  P:${eco.phyto[k].toFixed(2)}`;
-      tip.style.left=(x+15)+'px';tip.style.top=(y-10)+'px';tip.style.display='block';
+      const ci=clamp(Math.floor(gi),0,NX-1),cj=clamp(Math.floor(gj),0,NY-1);
+      const k=cj*NX+ci,depth=Math.floor((cj/(NY-1))*5000);
+      let tipText=`${depth}m  ${fluid.T[k].toFixed(1)}°C  N:${eco.nutrients[k].toFixed(2)}  P:${eco.phyto[k].toFixed(2)}`;
+      let nearD=20,nearOrg=null,nearType='';
+      for(const z of eco.zoo){const[sx,sy]=renderer.g2s(z.x,z.y);const d=Math.hypot(x-sx,y-sy);if(d<nearD){nearD=d;nearOrg=z;nearType='zoo';}}
+      for(const f of eco.fish){const[sx,sy]=renderer.g2s(f.x,f.y);const d=Math.hypot(x-sx,y-sy);if(d<nearD){nearD=d;nearOrg=f;nearType='fish';}}
+      if(nearOrg){
+        const od=Math.floor((nearOrg.y/(NY-1))*5000),ot=fluid.bilerp(fluid.T,nearOrg.x,nearOrg.y).toFixed(1);
+        if(nearType==='zoo'){
+          const lp=eco.phyto[clamp(Math.floor(nearOrg.y),0,NY-1)*NX+clamp(Math.floor(nearOrg.x),0,NX-1)];
+          tipText=`浮游动物 | 能量:${nearOrg.energy.toFixed(2)} | ${od}m ${ot}°C | 食物密度:${lp.toFixed(3)}`;
+        }else{
+          let md=Infinity;for(const z of eco.zoo){const d=Math.hypot(z.x-nearOrg.x,z.y-nearOrg.y);if(d<md)md=d;}
+          tipText=`鱼类 | 能量:${nearOrg.energy.toFixed(2)} | ${od}m ${ot}°C | 猎物距离:${md<Infinity?(md*5000/NY|0)+'m':'无'}`;
+        }
+      }else if(eco.phyto[k]>0.05){
+        const light=params.solar*Math.exp(-(cj/(NY-1))*5);
+        tipText=`浮游植物区 | 密度:${eco.phyto[k].toFixed(3)} | 光照:${light.toFixed(2)} | 养分:${eco.nutrients[k].toFixed(3)}`;
+      }
+      tip.textContent=tipText;tip.style.left=(x+15)+'px';tip.style.top=(y-10)+'px';tip.style.display='block';
     }else{tip.style.display='none';}
   }
   function onUp(){mouse.down=false;mouse.draggingSun=false;canvas.style.cursor='crosshair';}
@@ -752,7 +791,7 @@ function main(){
 
     if(!paused){
       for(let s=0;s<params.speed;s++){fluid.step();eco.step();}
-      currents.update();waves.update(fluid.windU);atmo.update();
+      currents.update();waves.update(fluid.windU,fluid.u);atmo.update();
     }
     renderer.render(frame);
 
