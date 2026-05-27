@@ -207,10 +207,18 @@
   <div class="menu-item" data-index="4" data-cat="fantasy">
     <span class="dot fantasy"></span><span class="label">The Latent Garden</span><span class="key-hint">5</span>
   </div>
+  <div class="menu-item" data-index="5" data-cat="fantasy">
+    <span class="dot fantasy"></span><span class="label">小确幸 · Small Joys</span><span class="key-hint">6</span>
+  </div>
+  <div class="menu-item" data-index="6" data-cat="fantasy">
+    <span class="dot fantasy"></span><span class="label">意识流形 · Consciousness Manifold</span><span class="key-hint">7</span>
+  </div>
 </nav>
 
 <div id="frame-container">
   <iframe class="project-frame active" src="celestial-mechanics.html"></iframe>
+  <iframe class="project-frame"></iframe>
+  <iframe class="project-frame"></iframe>
   <iframe class="project-frame"></iframe>
   <iframe class="project-frame"></iframe>
   <iframe class="project-frame"></iframe>
@@ -227,6 +235,8 @@
     { name: '大洋之息 · 海洋生态模拟器', cat: 'sim', src: 'ocean-thermodynamics.html' },
     { name: 'The Dreaming Machine', cat: 'fantasy', src: 'dreaming-machine.html' },
     { name: 'The Latent Garden', cat: 'fantasy', src: 'latent-garden.html' },
+    { name: '小确幸 · Small Joys', cat: 'fantasy', src: 'small-joys.html' },
+    { name: '意识流形 · Consciousness Manifold', cat: 'fantasy', src: 'consciousness-manifold.html' },
   ];
 
   var currentIndex = 0;
@@ -326,6 +336,8 @@
       case '3': switchTo(2); closeSidebar(); break;
       case '4': switchTo(3); closeSidebar(); break;
       case '5': switchTo(4); closeSidebar(); break;
+      case '6': switchTo(5); closeSidebar(); break;
+      case '7': switchTo(6); closeSidebar(); break;
     }
   });
 

@@ -15,6 +15,7 @@ body{background:#050510;overflow:hidden;font-family:'Segoe UI',system-ui,sans-se
 .tool-btn.active{border-color:rgba(80,180,255,0.6);box-shadow:0 0 10px rgba(80,180,255,0.2);color:#a0d8f0}
 .tool-btn .dot{width:10px;height:10px;border-radius:50%;display:block}
 .dot.green{background:#3cb050}.dot.amber{background:#d4a030}.dot.cyan{background:#40b8d8}
+.dot.brown{background:#a07040}.dot.pink{background:#d070b0}.dot.red{background:#e05030}
 .tool-btn[title]:hover::after{content:attr(title);position:absolute;left:44px;top:50%;transform:translateY(-50%);background:rgba(8,14,30,0.9);border:1px solid rgba(80,140,220,0.2);border-radius:6px;padding:4px 10px;font-size:11px;white-space:nowrap;color:#a0c0e0;pointer-events:none}
 .tool-sep{width:24px;height:1px;background:rgba(80,140,220,0.15);margin:2px auto}
 #bar{position:fixed;bottom:0;left:0;right:0;height:44px;display:flex;align-items:center;gap:0;padding:0 16px;z-index:20;border-radius:0;border-left:none;border-right:none;border-bottom:none}
@@ -27,8 +28,9 @@ body{background:#050510;overflow:hidden;font-family:'Segoe UI',system-ui,sans-se
 #solar-s{-webkit-appearance:none;width:90px;height:3px;background:rgba(80,140,220,0.2);border-radius:2px;outline:none}
 #solar-s::-webkit-slider-thumb{-webkit-appearance:none;width:12px;height:12px;background:#4facdf;border-radius:50%;cursor:pointer;border:2px solid #0a1428}
 .bar-val{font-size:10px;color:#5a7a9a;min-width:24px}
-.pop-item{font-size:11px;margin:0 6px;letter-spacing:0.3px}
+.pop-item{font-size:11px;margin:0 4px;letter-spacing:0.3px}
 .pop-item.g{color:#3cb050}.pop-item.a{color:#d4a030}.pop-item.c{color:#40b8d8}
+.pop-item.tb{color:#a07040}.pop-item.jf{color:#d070b0}.pop-item.ac{color:#e05030}
 .preset{font-size:10px!important;padding:3px 8px!important}
 #vis-panel{position:fixed;bottom:50px;right:16px;padding:10px 14px;z-index:25;display:none;min-width:140px}
 #vis-panel label{display:block;font-size:11px;color:#8a9ab8;padding:3px 0;cursor:pointer}
@@ -56,6 +58,10 @@ body{background:#050510;overflow:hidden;font-family:'Segoe UI',system-ui,sans-se
   <div class="tool-btn" data-tool="phyto" title="浮游植物"><span class="dot green"></span></div>
   <div class="tool-btn" data-tool="zoo" title="浮游动物"><span class="dot amber"></span></div>
   <div class="tool-btn" data-tool="fish" title="鱼类"><span class="dot cyan"></span></div>
+  <div class="tool-sep"></div>
+  <div class="tool-btn" data-tool="trilobite" title="三叶虫"><span class="dot brown"></span></div>
+  <div class="tool-btn" data-tool="jellyfish" title="水母"><span class="dot pink"></span></div>
+  <div class="tool-btn" data-tool="anomalocaris" title="奇虾"><span class="dot red"></span></div>
 </div>
 
 <div id="bar" class="glass">
@@ -76,12 +82,16 @@ body{background:#050510;overflow:hidden;font-family:'Segoe UI',system-ui,sans-se
     <span class="pop-item g" id="pop-p">● 0</span>
     <span class="pop-item a" id="pop-z">● 0</span>
     <span class="pop-item c" id="pop-f">● 0</span>
+    <span class="pop-item tb" id="pop-t">● 0</span>
+    <span class="pop-item jf" id="pop-j">● 0</span>
+    <span class="pop-item ac" id="pop-a">● 0</span>
   </div>
   <div class="bar-sep"></div>
   <div class="bar-g">
     <button class="bar-btn preset" data-p="empty">空白</button>
     <button class="bar-btn preset" data-p="primordial">原始</button>
     <button class="bar-btn preset active" data-p="full">完整</button>
+    <button class="bar-btn preset" data-p="cambrian">寒武纪</button>
     <button class="bar-btn preset" data-p="extreme">极端</button>
     <button class="bar-btn preset" data-p="ice">冰河</button>
   </div>
@@ -97,6 +107,7 @@ body{background:#050510;overflow:hidden;font-family:'Segoe UI',system-ui,sans-se
   <label><input type="checkbox" checked data-v="showBio"> 生物</label>
   <label><input type="checkbox" checked data-v="showWaves"> 海浪</label>
   <label><input type="checkbox" checked data-v="showAtmo"> 大气</label>
+  <label><input type="checkbox" data-v="showNutrients"> 营养盐</label>
   <label><input type="checkbox" data-v="showVelocity"> 流速</label>
   <div class="vis-sep"></div>
   <div class="slider-row"><span>浮力</span><input type="range" min="0" max="3" step="0.05" value="1" data-param="buoyancy"><span class="bar-val" id="v-buoy">1.0</span></div>
@@ -108,31 +119,15 @@ body{background:#050510;overflow:hidden;font-family:'Segoe UI',system-ui,sans-se
 <div id="legend"><canvas id="lc" width="110" height="8"></canvas><div class="legend-l"><span>2°C</span><span>28°C</span></div></div>
 <div id="fps"></div>
 
-<script>
-// ==================== CONFIG ====================
-const NX = 160, NY = 80;
-const JACOBI_ITER = 30;
-const DIFFUSION_T = 0.0003;
-
-const vis = { showTemp:true, showParticles:true, showBio:true, showWaves:true, showVelocity:false, showAtmo:true };
-const params = { solar:1, buoyancy:1, diffusion:1, speed:1 };
-let sunNormX = 0.85;
-let currentTool = 'force';
-let paused = false;
-const mouse = { x:0, y:0, px:0, py:0, down:false, draggingSun:false };
-
-// ==================== UTILS ====================
+<!-- ==================== SIMULATION WORKER ==================== -->
+<script id="sim-worker" type="text/worker">
+const NX=160,NY=80,JACOBI_ITER=30,DIFFUSION_T=0.0003;
 function lerp(a,b,t){return a+(b-a)*t}
 function clamp(v,lo,hi){return v<lo?lo:v>hi?hi:v}
-const tempColors=[[0,8,8,42],[2,12,20,80],[5,20,55,140],[10,30,100,170],[15,50,155,160],[20,80,190,100],[24,190,180,50],[27,220,120,30],[30,230,60,25]];
-function tempToColor(t){
-  t=clamp(t,0,30);let i=0;
-  while(i<tempColors.length-2&&tempColors[i+1][0]<t)i++;
-  const c0=tempColors[i],c1=tempColors[i+1],f=(t-c0[0])/(c1[0]-c0[0]);
-  return[lerp(c0[1],c1[1],f)|0,lerp(c0[2],c1[2],f)|0,lerp(c0[3],c1[3],f)|0];
-}
 
-// ==================== FLUID SIM ====================
+const params={solar:1,buoyancy:1,diffusion:1,speed:1};
+let sunNormX=0.85,paused=false;
+
 class FluidSim{
   constructor(){
     const n=NX*NY;
@@ -256,6 +251,16 @@ class FluidSim{
       for(let j=maxJ;j<NY;j++){const k=this.idx(i,j);this.u[k]=0;this.v[k]=0;}
     }
     for(let i=0;i<NX;i++)this.T[this.idx(i,NY-1)]=2;
+    for(let i=0;i<NX;i++){
+      const x=i/(NX-1),ridgeDist=Math.abs(x-0.45);
+      if(ridgeDist<0.06){
+        const heat=(1-ridgeDist/0.06)*0.12;
+        const maxJ=Math.floor(this.terrain[i]*(NY-1));
+        for(let j=Math.max(1,maxJ-3);j<maxJ;j++){
+          this.T[this.idx(i,j)]=Math.min(30,this.T[this.idx(i,j)]+heat);
+        }
+      }
+    }
   }
   step(){
     this.computeDensity();this.applyForces();
@@ -271,92 +276,6 @@ class FluidSim{
   }
 }
 
-// ==================== CURRENT PARTICLES ====================
-class CurrentParticles{
-  constructor(fluid){
-    this.fluid=fluid;this.particles=[];
-    for(let i=0;i<2500;i++)this.particles.push(this.create());
-  }
-  create(){return{x:Math.random()*NX,y:Math.random()*NY*0.9,trail:[],life:0,maxLife:300+Math.random()*400,size:0.8+Math.random()*0.8}}
-  update(){
-    for(const p of this.particles){
-      p.life++;
-      const fi=clamp(Math.floor(p.x),0,NX-1);
-      if(p.life>p.maxLife||p.x<0||p.x>=NX||p.y<0||p.y/(NY-1)>this.fluid.terrain[fi]){Object.assign(p,this.create());continue;}
-      p.x+=this.fluid.bilerp(this.fluid.u,p.x,p.y);
-      p.y+=this.fluid.bilerp(this.fluid.v,p.x,p.y);
-      p.trail.push({x:p.x,y:p.y});
-      if(p.trail.length>25)p.trail.shift();
-    }
-  }
-}
-
-// ==================== WAVE SYSTEM ====================
-class WaveSystem{
-  constructor(){
-    this.h=new Float32Array(NX);this.vel=new Float32Array(NX);
-    this.foam=[];
-    for(let i=0;i<100;i++)this.foam.push({x:Math.random(),life:Math.random()*100,size:1+Math.random()*2,opacity:0});
-  }
-  getHeight(gx){
-    const i0=Math.floor(gx),f=gx-i0;
-    return(this.h[clamp(i0,0,NX-1)]*(1-f)+this.h[clamp(i0+1,0,NX-1)]*f)*14;
-  }
-  update(windU,surfU){
-    const c2=0.25,wc=0.02,cc=0.012,vd=0.994,hd=0.998;
-    for(let i=1;i<NX-1;i++){this.vel[i]+=windU[i]*wc;if(surfU)this.vel[i]+=(surfU[i-1]-surfU[i+1])*cc;this.vel[i]+=c2*(this.h[i-1]-2*this.h[i]+this.h[i+1]);}
-    for(let i=1;i<NX-1;i++){this.h[i]+=this.vel[i];this.vel[i]*=vd;this.h[i]*=hd;}
-    this.h[0]*=0.95;this.h[NX-1]*=0.95;this.vel[0]*=0.9;this.vel[NX-1]*=0.9;
-    for(const f of this.foam){
-      f.life+=0.8;const fi=clamp(Math.floor(f.x*(NX-1)),0,NX-1);
-      f.opacity=clamp(Math.abs(this.h[fi])*4-0.1,0,0.6)*(0.5+0.5*Math.sin(f.life*0.06));
-      if(f.life>180){f.x=Math.random();f.life=0;f.opacity=0;}
-    }
-  }
-  reset(){this.h.fill(0);this.vel.fill(0);}
-}
-
-// ==================== ATMOSPHERE ====================
-class AtmosphereSystem{
-  constructor(fluid){
-    this.fluid=fluid;this.particles=[];
-    this.gradT=new Float32Array(NX);
-    this.anom=new Float32Array(NX);
-    for(let i=0;i<450;i++)this.particles.push(this.create());
-  }
-  create(){return{x:Math.random(),y:Math.random(),trail:[],maxTrail:14,life:0,maxLife:350+Math.random()*300,temp:15,size:0.6+Math.random()*0.8}}
-  precompute(){
-    let tSum=0;
-    for(let i=0;i<NX;i++)tSum+=this.fluid.T[i];
-    const tMean=tSum/NX;
-    for(let i=1;i<NX-1;i++){
-      this.gradT[i]=(this.fluid.T[i+1]-this.fluid.T[i-1])*0.5;
-      this.anom[i]=this.fluid.T[i]-tMean;
-    }
-    this.gradT[0]=this.gradT[1];this.gradT[NX-1]=this.gradT[NX-2];
-    this.anom[0]=this.fluid.T[0]-tMean;this.anom[NX-1]=this.fluid.T[NX-1]-tMean;
-  }
-  getVelocity(nx,ny){
-    const ix=clamp(Math.floor(nx*(NX-1)),0,NX-1);
-    const u=this.gradT[ix]*0.005*Math.cos(Math.PI*ny);
-    const v=this.anom[ix]*0.0006*Math.sin(Math.PI*ny);
-    return[u,v];
-  }
-  update(){
-    this.precompute();
-    for(const p of this.particles){
-      p.life++;
-      if(p.life>p.maxLife||p.x<-0.02||p.x>1.02||p.y<-0.02||p.y>1.02){Object.assign(p,this.create());continue;}
-      const[u,v]=this.getVelocity(p.x,p.y);
-      p.x=clamp(p.x+u,0,1);p.y=clamp(p.y+v,0,1);
-      const gi=clamp(Math.floor(p.x*(NX-1)),0,NX-1);
-      p.temp=lerp(p.temp,this.fluid.T[this.fluid.idx(gi,0)]*(1-p.y*0.7),0.03);
-      p.trail.push({x:p.x,y:p.y});if(p.trail.length>p.maxTrail)p.trail.shift();
-    }
-  }
-}
-
-// ==================== ECOSYSTEM ====================
 class Ecosystem{
   constructor(fluid){
     this.fluid=fluid;
@@ -365,9 +284,12 @@ class Ecosystem{
     this.phyto=new Float32Array(NX*NY);
     this.phyto0=new Float32Array(NX*NY);
     this.zoo=[];this.fish=[];
+    this.trilobites=[];this.jellyfish=[];this.anomalocaris=[];
   }
   seed(mode){
-    this.nutrients.fill(0);this.phyto.fill(0);this.zoo=[];this.fish=[];
+    this.nutrients.fill(0);this.phyto.fill(0);
+    this.zoo=[];this.fish=[];
+    this.trilobites=[];this.jellyfish=[];this.anomalocaris=[];
     for(let j=0;j<NY;j++)for(let i=0;i<NX;i++){
       this.nutrients[j*NX+i]=(j/(NY-1))*0.7+Math.random()*0.05;
     }
@@ -376,17 +298,36 @@ class Ecosystem{
       this.phyto[j*NX+i]=0.05+Math.random()*0.1;
     }
     if(mode==='primordial')return;
-    const nz=mode==='ice'?15:mode==='extreme'?30:60;
-    const nf=mode==='ice'?3:mode==='extreme'?6:12;
-    for(let n=0;n<nz;n++)this.zoo.push(this.createZoo());
-    for(let n=0;n<nf;n++)this.fish.push(this.createFish());
+    const counts={
+      full:      {zoo:60,fish:12,tri:8, jelly:25,anom:4},
+      cambrian:  {zoo:80,fish:18,tri:15,jelly:35,anom:8},
+      extreme:   {zoo:30,fish:6, tri:5, jelly:15,anom:3},
+      ice:       {zoo:15,fish:3, tri:3, jelly:5, anom:1}
+    };
+    const c=counts[mode]||counts.full;
+    for(let n=0;n<c.zoo;n++)this.zoo.push(this.createZoo());
+    for(let n=0;n<c.fish;n++)this.fish.push(this.createFish());
+    for(let n=0;n<c.tri;n++)this.trilobites.push(this.createTrilobite());
+    for(let n=0;n<c.jelly;n++)this.jellyfish.push(this.createJellyfish());
+    for(let n=0;n<c.anom;n++)this.anomalocaris.push(this.createAnom());
   }
   createZoo(x,y){return{x:x??Math.random()*NX,y:y??Math.random()*NY*0.3+1,energy:0.5+Math.random()*0.5,trail:[]}}
   createFish(x,y){return{x:x??Math.random()*NX,y:y??Math.random()*NY*0.4+1,energy:0.8+Math.random()*0.5,trail:[]}}
+  createTrilobite(x,y){
+    const fx=x??Math.random()*NX;
+    const ti=clamp(Math.floor(fx),0,NX-1);
+    const ty=y??(this.fluid.terrain[ti]*(NY-1)-1-Math.random()*4);
+    return{x:fx,y:clamp(ty,2,NY-2),energy:0.6+Math.random()*0.4,trail:[],phase:Math.random()*Math.PI*2};
+  }
+  createJellyfish(x,y){
+    return{x:x??Math.random()*NX,y:y??Math.random()*NY*0.5+2,energy:0.6+Math.random()*0.4,trail:[],pulse:Math.random()*Math.PI*2};
+  }
+  createAnom(x,y){
+    return{x:x??Math.random()*NX,y:y??Math.random()*NY*0.5+5,energy:1.2+Math.random()*0.8,trail:[]};
+  }
   step(){
     this.nutrients0.set(this.nutrients);this.fluid.advect(this.nutrients0,this.nutrients,this.fluid.u,this.fluid.v);
     this.phyto0.set(this.phyto);this.fluid.advect(this.phyto0,this.phyto,this.fluid.u,this.fluid.v);
-
     for(let j=0;j<NY;j++)for(let i=0;i<NX;i++){
       const k=j*NX+i,depth=j/(NY-1);
       if(depth>this.fluid.terrain[i]){this.phyto[k]=0;continue;}
@@ -400,9 +341,19 @@ class Ecosystem{
     for(let i=0;i<NX;i++){
       const k=(NY-2)*NX+i;this.nutrients[k]=Math.min(1,this.nutrients[k]+0.0008);
     }
+    for(let i=0;i<NX;i++){
+      const x=i/(NX-1),ridgeDist=Math.abs(x-0.45);
+      if(ridgeDist<0.06){
+        const maxJ=Math.floor(this.fluid.terrain[i]*(NY-1));
+        for(let j=Math.max(1,maxJ-3);j<maxJ;j++){
+          this.nutrients[j*NX+i]=Math.min(1,this.nutrients[j*NX+i]+0.002*(1-ridgeDist/0.06));
+        }
+      }
+    }
     this.fluid.diffuse(this.nutrients,0.0004);
     this.fluid.diffuse(this.phyto,0.00015);
 
+    // Zoo plankton
     const newZoo=[];
     for(let z=this.zoo.length-1;z>=0;z--){
       const p=this.zoo[z];
@@ -423,6 +374,7 @@ class Ecosystem{
     }
     this.zoo.push(...newZoo);
 
+    // Fish
     const newFish=[];
     for(let f=this.fish.length-1;f>=0;f--){
       const p=this.fish[f];
@@ -444,17 +396,327 @@ class Ecosystem{
       if(p.energy>2.0&&this.fish.length+newFish.length<80){p.energy*=0.5;newFish.push(this.createFish(p.x+(Math.random()-0.5)*3,p.y+(Math.random()-0.5)*3));}
     }
     this.fish.push(...newFish);
+
+    // Trilobites — benthic detritivores, crawl along seafloor
+    const newTri=[];
+    for(let i=this.trilobites.length-1;i>=0;i--){
+      const p=this.trilobites[i];
+      const ti=clamp(Math.floor(p.x),0,NX-1);
+      const floorY=this.fluid.terrain[ti]*(NY-1)-1;
+      const u=this.fluid.bilerp(this.fluid.u,p.x,p.y)*0.3;
+      p.phase+=0.05;
+      p.x+=u+Math.sin(p.phase)*0.15+(Math.random()-0.5)*0.1;
+      p.y+=(floorY-p.y)*0.08;
+      p.x=clamp(p.x,1,NX-2);p.y=clamp(p.y,2,NY-3);
+      const ti2=clamp(Math.floor(p.x),0,NX-1);
+      if(p.y/(NY-1)>this.fluid.terrain[ti2])p.y=this.fluid.terrain[ti2]*(NY-1)-1.5;
+      const nk=clamp(Math.floor(p.y),0,NY-1)*NX+clamp(Math.floor(p.x),0,NX-1);
+      const eaten=Math.min(this.nutrients[nk],0.004);
+      this.nutrients[nk]-=eaten;p.energy+=eaten*2.5;p.energy-=0.002;
+      p.trail.push({x:p.x,y:p.y});if(p.trail.length>5)p.trail.shift();
+      if(p.energy<=0){this.nutrients[nk]=Math.min(1,this.nutrients[nk]+0.2);this.trilobites.splice(i,1);continue;}
+      if(p.energy>1.8&&this.trilobites.length+newTri.length<35){p.energy*=0.5;newTri.push(this.createTrilobite(p.x+(Math.random()-0.5)*3,p.y));}
+    }
+    this.trilobites.push(...newTri);
+
+    // Jellyfish — planktivore drifters, eat zoo, pulse motion
+    const newJelly=[];
+    for(let i=this.jellyfish.length-1;i>=0;i--){
+      const p=this.jellyfish[i];
+      const u=this.fluid.bilerp(this.fluid.u,p.x,p.y),v=this.fluid.bilerp(this.fluid.v,p.x,p.y);
+      p.pulse+=0.04;
+      const pulseV=Math.sin(p.pulse)*0.12;
+      let nearD=Infinity,nearI=-1;
+      for(let z=0;z<this.zoo.length;z++){
+        const dx=this.zoo[z].x-p.x,dy=this.zoo[z].y-p.y,d=dx*dx+dy*dy;
+        if(d<nearD){nearD=d;nearI=z;}
+      }
+      let hx=0,hy=0;
+      if(nearI>=0&&nearD<100){
+        const t=this.zoo[nearI],dx=t.x-p.x,dy=t.y-p.y,d=Math.sqrt(dx*dx+dy*dy);
+        if(d>0){hx=dx/d*0.06;hy=dy/d*0.06;}
+        if(d<3){p.energy+=0.3;this.zoo.splice(nearI,1);}
+      }
+      p.x+=u*0.9+hx+(Math.random()-0.5)*0.15;
+      p.y+=v*0.9+pulseV+hy;
+      p.x=clamp(p.x,1,NX-2);p.y=clamp(p.y,1,NY-3);
+      const ti=clamp(Math.floor(p.x),0,NX-1);if(p.y/(NY-1)>this.fluid.terrain[ti])p.y=this.fluid.terrain[ti]*(NY-1)-2;
+      p.energy-=0.0025;
+      p.trail.push({x:p.x,y:p.y});if(p.trail.length>12)p.trail.shift();
+      if(p.energy<=0){const nk=clamp(Math.floor(p.y),0,NY-1)*NX+clamp(Math.floor(p.x),0,NX-1);this.nutrients[nk]=Math.min(1,this.nutrients[nk]+0.2);this.jellyfish.splice(i,1);continue;}
+      if(p.energy>1.3&&this.jellyfish.length+newJelly.length<150){p.energy*=0.5;newJelly.push(this.createJellyfish(p.x+(Math.random()-0.5)*4,p.y+(Math.random()-0.5)*3));}
+    }
+    this.jellyfish.push(...newJelly);
+
+    // Anomalocaris — apex predator, hunts fish and trilobites
+    const newAnom=[];
+    for(let i=this.anomalocaris.length-1;i>=0;i--){
+      const p=this.anomalocaris[i];
+      const u=this.fluid.bilerp(this.fluid.u,p.x,p.y),v=this.fluid.bilerp(this.fluid.v,p.x,p.y);
+      let nearD=Infinity,nearTarget=null,nearArr=null,nearIdx=-1;
+      for(let f=0;f<this.fish.length;f++){
+        const dx=this.fish[f].x-p.x,dy=this.fish[f].y-p.y,d=dx*dx+dy*dy;
+        if(d<nearD){nearD=d;nearTarget=this.fish[f];nearArr=this.fish;nearIdx=f;}
+      }
+      for(let t=0;t<this.trilobites.length;t++){
+        const dx=this.trilobites[t].x-p.x,dy=this.trilobites[t].y-p.y,d=dx*dx+dy*dy;
+        if(d<nearD){nearD=d;nearTarget=this.trilobites[t];nearArr=this.trilobites;nearIdx=t;}
+      }
+      let hx=0,hy=0;
+      if(nearTarget&&nearD<400){
+        const dx=nearTarget.x-p.x,dy=nearTarget.y-p.y,d=Math.sqrt(dx*dx+dy*dy);
+        if(d>0){hx=dx/d*0.22;hy=dy/d*0.22;}
+        if(d<4){p.energy+=0.6;nearArr.splice(nearIdx,1);}
+      }
+      p.x+=u*0.5+hx+(Math.random()-0.5)*0.2;
+      p.y+=v*0.5+hy+(Math.random()-0.5)*0.2;
+      p.x=clamp(p.x,1,NX-2);p.y=clamp(p.y,2,NY-3);
+      const ti=clamp(Math.floor(p.x),0,NX-1);if(p.y/(NY-1)>this.fluid.terrain[ti])p.y=this.fluid.terrain[ti]*(NY-1)-2;
+      p.energy-=0.006;
+      p.trail.push({x:p.x,y:p.y});if(p.trail.length>10)p.trail.shift();
+      if(p.energy<=0){const nk=clamp(Math.floor(p.y),0,NY-1)*NX+clamp(Math.floor(p.x),0,NX-1);this.nutrients[nk]=Math.min(1,this.nutrients[nk]+0.5);this.anomalocaris.splice(i,1);continue;}
+      if(p.energy>2.5&&this.anomalocaris.length+newAnom.length<30){p.energy*=0.5;newAnom.push(this.createAnom(p.x+(Math.random()-0.5)*5,p.y+(Math.random()-0.5)*4));}
+    }
+    this.anomalocaris.push(...newAnom);
   }
   getPhytoTotal(){let s=0;for(let k=0;k<NX*NY;k++)s+=this.phyto[k];return s;}
 }
 
+// ---- Worker state & loop ----
+const fluid=new FluidSim();
+fluid.initTemp();
+const eco=new Ecosystem(fluid);
+eco.seed('full');
+
+function loadPreset(name){
+  fluid.u.fill(0);fluid.v.fill(0);
+  switch(name){
+    case'empty':params.solar=0.5;sunNormX=0.5;break;
+    case'primordial':params.solar=1;sunNormX=0.85;break;
+    case'full':params.solar=1;sunNormX=0.85;break;
+    case'cambrian':params.solar=1.3;sunNormX=0.75;break;
+    case'extreme':params.solar=2;sunNormX=0.9;break;
+    case'ice':params.solar=0.2;sunNormX=0.15;break;
+  }
+  fluid.initTemp();
+  eco.seed(name);
+}
+
+function postState(){
+  self.postMessage({
+    type:'state',
+    T:new Float32Array(fluid.T),
+    u:new Float32Array(fluid.u),
+    v:new Float32Array(fluid.v),
+    windU:new Float32Array(fluid.windU),
+    terrain:new Float32Array(fluid.terrain),
+    nutrients:new Float32Array(eco.nutrients),
+    phyto:new Float32Array(eco.phyto),
+    zoo:eco.zoo.map(z=>({x:z.x,y:z.y,energy:z.energy,trail:z.trail.slice()})),
+    fish:eco.fish.map(f=>({x:f.x,y:f.y,energy:f.energy,trail:f.trail.slice()})),
+    trilobites:eco.trilobites.map(t=>({x:t.x,y:t.y,energy:t.energy,trail:t.trail.slice()})),
+    jellyfish:eco.jellyfish.map(j=>({x:j.x,y:j.y,energy:j.energy,trail:j.trail.slice(),pulse:j.pulse})),
+    anomalocaris:eco.anomalocaris.map(a=>({x:a.x,y:a.y,energy:a.energy,trail:a.trail.slice()})),
+    windStrength:fluid.windStrength,
+    phytoTotal:eco.getPhytoTotal()
+  });
+}
+
+self.onmessage=function(e){
+  const d=e.data;
+  if(d.type==='params'){
+    params.solar=d.solar;params.buoyancy=d.buoyancy;
+    params.diffusion=d.diffusion;params.speed=d.speed;
+    sunNormX=d.sunNormX;
+  }
+  if(d.type==='force'){
+    const R=3,gi=d.gi,gj=d.gj,dx=d.dx,dy=d.dy;
+    for(let dj=-R;dj<=R;dj++)for(let di=-R;di<=R;di++){
+      const ii=Math.floor(gi)+di,jj=Math.floor(gj)+dj;
+      if(ii<1||ii>=NX-1||jj<1||jj>=NY-1)continue;
+      const dist=Math.sqrt(di*di+dj*dj);if(dist>R)continue;
+      const fade=1-dist/R,k=jj*NX+ii;
+      fluid.u[k]+=dx*fade;fluid.v[k]+=dy*fade;
+    }
+  }
+  if(d.type==='place'){
+    const gi=d.gi,gj=d.gj;
+    if(d.tool==='phyto'){
+      const ci=clamp(Math.floor(gi),1,NX-2),cj=clamp(Math.floor(gj),1,NY-2);
+      for(let dj=-2;dj<=2;dj++)for(let di=-2;di<=2;di++){
+        const ii=ci+di,jj=cj+dj;if(ii<0||ii>=NX||jj<0||jj>=NY)continue;
+        eco.phyto[jj*NX+ii]=Math.min(1.5,eco.phyto[jj*NX+ii]+0.3);
+      }
+    }else if(d.tool==='zoo'){eco.zoo.push(eco.createZoo(gi,gj));}
+    else if(d.tool==='fish'){eco.fish.push(eco.createFish(gi,gj));}
+    else if(d.tool==='trilobite'){eco.trilobites.push(eco.createTrilobite(gi,gj));}
+    else if(d.tool==='jellyfish'){eco.jellyfish.push(eco.createJellyfish(gi,gj));}
+    else if(d.tool==='anomalocaris'){eco.anomalocaris.push(eco.createAnom(gi,gj));}
+  }
+  if(d.type==='preset'){loadPreset(d.name);}
+  if(d.type==='pause'){paused=d.paused;}
+};
+
+function tick(){
+  if(!paused){
+    for(let s=0;s<params.speed;s++){fluid.step();eco.step();}
+  }
+  postState();
+  setTimeout(tick,16);
+}
+postState();
+tick();
+</script>
+
+<!-- ==================== MAIN THREAD ==================== -->
+<script>
+const NX=160,NY=80;
+
+const vis={showTemp:true,showParticles:true,showBio:true,showWaves:true,showVelocity:false,showAtmo:true,showNutrients:false};
+const params={solar:1,buoyancy:1,diffusion:1,speed:1};
+let sunNormX=0.85;
+let currentTool='force';
+let paused=false;
+const mouse={x:0,y:0,px:0,py:0,down:false,draggingSun:false};
+let zoom=1,panX=0,panY=0;
+
+const sim={
+  T:new Float32Array(NX*NY),u:new Float32Array(NX*NY),v:new Float32Array(NX*NY),
+  windU:new Float32Array(NX),terrain:new Float32Array(NX),
+  nutrients:new Float32Array(NX*NY),phyto:new Float32Array(NX*NY),
+  zoo:[],fish:[],trilobites:[],jellyfish:[],anomalocaris:[],
+  windStrength:0.5,phytoTotal:0,ready:false
+};
+
+function lerp(a,b,t){return a+(b-a)*t}
+function clamp(v,lo,hi){return v<lo?lo:v>hi?hi:v}
+function bilerp(field,x,y){
+  const i0=Math.floor(x),j0=Math.floor(y),sx=x-i0,sy=y-j0;
+  const ci0=clamp(i0,0,NX-1),ci1=clamp(i0+1,0,NX-1);
+  const cj0=clamp(j0,0,NY-1),cj1=clamp(j0+1,0,NY-1);
+  return(1-sx)*(1-sy)*field[cj0*NX+ci0]+sx*(1-sy)*field[cj0*NX+ci1]
+    +(1-sx)*sy*field[cj1*NX+ci0]+sx*sy*field[cj1*NX+ci1];
+}
+const tempColors=[[0,8,8,42],[2,12,20,80],[5,20,55,140],[10,30,100,170],[15,50,155,160],[20,80,190,100],[24,190,180,50],[27,220,120,30],[30,230,60,25]];
+function tempToColor(t){
+  t=clamp(t,0,30);let i=0;
+  while(i<tempColors.length-2&&tempColors[i+1][0]<t)i++;
+  const c0=tempColors[i],c1=tempColors[i+1],f=(t-c0[0])/(c1[0]-c0[0]);
+  return[lerp(c0[1],c1[1],f)|0,lerp(c0[2],c1[2],f)|0,lerp(c0[3],c1[3],f)|0];
+}
+const TLUT=new Uint8Array(768);
+for(let i=0;i<256;i++){const c=tempToColor(i/255*30);TLUT[i*3]=c[0];TLUT[i*3+1]=c[1];TLUT[i*3+2]=c[2];}
+
+// ==================== CURRENT PARTICLES ====================
+class CurrentParticles{
+  constructor(){
+    this.particles=[];
+    for(let i=0;i<2500;i++)this.particles.push(this.create());
+  }
+  create(){return{x:Math.random()*NX,y:Math.random()*NY*0.9,trail:[],life:0,maxLife:300+Math.random()*400,size:0.8+Math.random()*0.8}}
+  update(){
+    for(const p of this.particles){
+      p.life++;
+      const fi=clamp(Math.floor(p.x),0,NX-1);
+      if(p.life>p.maxLife||p.x<0||p.x>=NX||p.y<0||p.y/(NY-1)>sim.terrain[fi]){Object.assign(p,this.create());continue;}
+      p.x+=bilerp(sim.u,p.x,p.y);
+      p.y+=bilerp(sim.v,p.x,p.y);
+      p.trail.push({x:p.x,y:p.y});
+      if(p.trail.length>16)p.trail.shift();
+    }
+  }
+}
+
+// ==================== WAVE SURFACE (fluid-driven) ====================
+class WaveSystem{
+  constructor(){
+    this.h=new Float32Array(NX);
+    this.t=0;
+    this.foam=[];
+    for(let i=0;i<100;i++)this.foam.push({x:Math.random(),life:Math.random()*100,size:1+Math.random()*2,opacity:0});
+  }
+  getHeight(gx){
+    const i0=Math.floor(gx),f=gx-i0;
+    const base=this.h[clamp(i0,0,NX-1)]*(1-f)+this.h[clamp(i0+1,0,NX-1)]*f;
+    const ws=sim.windStrength,t=this.t;
+    const ripple=ws*0.25*(Math.sin(gx*0.8+t*0.04)*0.5+Math.sin(gx*1.7-t*0.025)*0.3+Math.sin(gx*3.1+t*0.06)*0.2);
+    return(base+ripple)*14;
+  }
+  update(){
+    this.t++;
+    for(let i=1;i<NX-1;i++){
+      const vUp=-(sim.v[NX+i]+sim.v[2*NX+i])*0.5;
+      const conv=(sim.u[i-1]-sim.u[i+1])*0.5;
+      const wind=sim.windU[i];
+      const target=vUp*10+conv*6+wind*0.5;
+      this.h[i]+=(target-this.h[i])*0.1;
+      this.h[i]+=0.06*(this.h[i-1]+this.h[i+1]-2*this.h[i]);
+    }
+    this.h[0]*=0.9;this.h[NX-1]*=0.9;
+    for(const f of this.foam){
+      f.life+=0.8;const fi=clamp(Math.floor(f.x*(NX-1)),0,NX-1);
+      f.opacity=clamp(Math.abs(this.h[fi])*3+sim.windStrength*0.3-0.15,0,0.6)*(0.5+0.5*Math.sin(f.life*0.06));
+      if(f.life>180){f.x=Math.random();f.life=0;f.opacity=0;}
+    }
+  }
+  reset(){this.h.fill(0);}
+}
+
+// ==================== ATMOSPHERE ====================
+class AtmosphereSystem{
+  constructor(){
+    this.particles=[];
+    this.gradT=new Float32Array(NX);
+    this.anom=new Float32Array(NX);
+    for(let i=0;i<450;i++)this.particles.push(this.create());
+  }
+  create(){return{x:Math.random(),y:Math.random(),trail:[],maxTrail:14,life:0,maxLife:350+Math.random()*300,temp:15,size:0.6+Math.random()*0.8}}
+  precompute(){
+    let tSum=0;
+    for(let i=0;i<NX;i++)tSum+=sim.T[i];
+    const tMean=tSum/NX;
+    for(let i=1;i<NX-1;i++){
+      this.gradT[i]=(sim.T[i+1]-sim.T[i-1])*0.5;
+      this.anom[i]=sim.T[i]-tMean;
+    }
+    this.gradT[0]=this.gradT[1];this.gradT[NX-1]=this.gradT[NX-2];
+    this.anom[0]=sim.T[0]-tMean;this.anom[NX-1]=sim.T[NX-1]-tMean;
+  }
+  getVelocity(nx,ny){
+    const ix=clamp(Math.floor(nx*(NX-1)),0,NX-1);
+    const u=this.gradT[ix]*0.005*Math.cos(Math.PI*ny);
+    const v=this.anom[ix]*0.0006*Math.sin(Math.PI*ny);
+    return[u,v];
+  }
+  update(){
+    this.precompute();
+    for(const p of this.particles){
+      p.life++;
+      if(p.life>p.maxLife||p.x<-0.02||p.x>1.02||p.y<-0.02||p.y>1.02){Object.assign(p,this.create());continue;}
+      const[u,v]=this.getVelocity(p.x,p.y);
+      p.x=clamp(p.x+u,0,1);p.y=clamp(p.y+v,0,1);
+      const gi=clamp(Math.floor(p.x*(NX-1)),0,NX-1);
+      p.temp=lerp(p.temp,sim.T[gi]*(1-p.y*0.7),0.03);
+      p.trail.push({x:p.x,y:p.y});if(p.trail.length>p.maxTrail)p.trail.shift();
+    }
+  }
+}
+
 // ==================== RENDERER ====================
 class Renderer{
-  constructor(canvas,fluid,currents,waves,atmo,eco){
+  constructor(canvas,currents,waves,atmo){
     this.canvas=canvas;this.ctx=canvas.getContext('2d');
-    this.fluid=fluid;this.currents=currents;this.waves=waves;this.atmo=atmo;this.eco=eco;
+    this.currents=currents;this.waves=waves;this.atmo=atmo;
     this.off=document.createElement('canvas');this.off.width=NX;this.off.height=NY;
     this.offCtx=this.off.getContext('2d');this.img=this.offCtx.createImageData(NX,NY);
+    this.glowSprite=document.createElement('canvas');this.glowSprite.width=16;this.glowSprite.height=16;
+    const gc=this.glowSprite.getContext('2d'),gg=gc.createRadialGradient(8,8,0,8,8,8);
+    gg.addColorStop(0,'rgba(80,200,240,0.2)');gg.addColorStop(1,'rgba(80,200,240,0)');
+    gc.fillStyle=gg;gc.fillRect(0,0,16,16);
+    this.anomSprite=document.createElement('canvas');this.anomSprite.width=20;this.anomSprite.height=20;
+    const ac=this.anomSprite.getContext('2d'),ag=ac.createRadialGradient(10,10,0,10,10,10);
+    ag.addColorStop(0,'rgba(230,70,30,0.3)');ag.addColorStop(1,'rgba(230,70,30,0)');
+    ac.fillStyle=ag;ac.fillRect(0,0,20,20);
     this.resize();window.addEventListener('resize',()=>this.resize());
   }
   resize(){
@@ -462,30 +724,50 @@ class Renderer{
     this.canvas.width=window.innerWidth*dpr;this.canvas.height=window.innerHeight*dpr;
     this.ctx.scale(dpr,dpr);
     this.vw=window.innerWidth;this.vh=window.innerHeight;
-    this.oceanTop=this.vh*0.18;this.oceanBottom=this.vh*0.92;
-    this.oceanH=this.oceanBottom-this.oceanTop;
-    this.oceanLeft=this.vw*0.05;this.oceanRight=this.vw*0.97;
-    this.oceanW=this.oceanRight-this.oceanLeft;
+    this.baseOceanTop=this.vh*0.18;this.baseOceanBottom=this.vh*0.92;
+    this.baseOceanH=this.baseOceanBottom-this.baseOceanTop;
+    this.baseOceanLeft=this.vw*0.05;this.baseOceanRight=this.vw*0.97;
+    this.baseOceanW=this.baseOceanRight-this.baseOceanLeft;
+    this.applyZoom();
+  }
+  applyZoom(){
+    const cx=this.baseOceanLeft+this.baseOceanW/2,cy=this.baseOceanTop+this.baseOceanH/2;
+    this.oceanW=this.baseOceanW*zoom;this.oceanH=this.baseOceanH*zoom;
+    this.oceanLeft=cx-this.oceanW/2+panX;this.oceanTop=cy-this.oceanH/2+panY;
+    this.oceanRight=this.oceanLeft+this.oceanW;this.oceanBottom=this.oceanTop+this.oceanH;
   }
   g2s(gi,gj){return[this.oceanLeft+(gi/(NX-1))*this.oceanW,this.oceanTop+(gj/(NY-1))*this.oceanH]}
   s2g(sx,sy){return[(sx-this.oceanLeft)/this.oceanW*(NX-1),(sy-this.oceanTop)/this.oceanH*(NY-1)]}
   inOcean(sx,sy){return sx>=this.oceanLeft&&sx<=this.oceanRight&&sy>=this.oceanTop&&sy<=this.oceanBottom}
-  sunScreenPos(){return[this.oceanLeft+sunNormX*this.oceanW,this.oceanTop*0.35]}
+  sunScreenPos(){return[this.oceanLeft+sunNormX*this.oceanW,this.baseOceanTop*0.35]}
+
+  waveClipPath(ctx){
+    const wY=this.oceanTop;
+    ctx.beginPath();
+    for(let px=0;px<=this.oceanW;px+=2){
+      const gx=(px/this.oceanW)*NX,h=vis.showWaves?this.waves.getHeight(gx):0;
+      px===0?ctx.moveTo(this.oceanLeft,wY+h):ctx.lineTo(this.oceanLeft+px,wY+h);
+    }
+    ctx.lineTo(this.oceanRight,this.oceanBottom+5);
+    ctx.lineTo(this.oceanLeft,this.oceanBottom+5);
+    ctx.closePath();
+  }
 
   render(time){
+    this.applyZoom();
     const ctx=this.ctx;ctx.clearRect(0,0,this.vw,this.vh);
+    ctx.save();
+    this.waveClipPath(ctx);
+    ctx.clip();
     if(vis.showTemp)this.drawTemp(ctx);
+    if(vis.showNutrients)this.drawNutrients(ctx);
     if(vis.showVelocity)this.drawVel(ctx);
     this.drawTerrain(ctx);
-    this.drawSky(ctx,time);
-    if(vis.showAtmo)this.drawAtmo(ctx);
-    ctx.save();ctx.beginPath();
-    const clipY=this.oceanTop;
-    for(let px=0;px<=this.oceanW;px+=2){const gx=(px/this.oceanW)*NX,h=vis.showWaves?this.waves.getHeight(gx):0;px===0?ctx.moveTo(this.oceanLeft,clipY+h):ctx.lineTo(this.oceanLeft+px,clipY+h);}
-    ctx.lineTo(this.oceanRight,this.oceanBottom+5);ctx.lineTo(this.oceanLeft,this.oceanBottom+5);ctx.closePath();ctx.clip();
     if(vis.showParticles)this.drawCurrents(ctx);
     if(vis.showBio)this.drawEco(ctx,time);
     ctx.restore();
+    this.drawSky(ctx,time);
+    if(vis.showAtmo)this.drawAtmo(ctx);
     this.drawDepth(ctx);
     if(mouse.down&&currentTool==='force'&&this.inOcean(mouse.x,mouse.y)){
       ctx.beginPath();ctx.arc(mouse.x,mouse.y,18,0,Math.PI*2);
@@ -494,21 +776,35 @@ class Renderer{
   }
 
   drawTemp(ctx){
-    const d=this.img.data,eco=this.eco;
-    for(let j=0;j<NY;j++)for(let i=0;i<NX;i++){
-      const k=j*NX+i,depth=j/(NY-1),pi=k*4;
-      if(depth>this.fluid.terrain[i]){d[pi]=15;d[pi+1]=12;d[pi+2]=10;d[pi+3]=255;continue;}
-      const c=tempToColor(this.fluid.T[k]);
-      let r=c[0],g=c[1],b=c[2];
-      if(vis.showBio&&eco){
-        const pv=eco.phyto[k];
+    const d=this.img.data,sT=sim.T,sP=sim.phyto,sTr=sim.terrain,sb=vis.showBio;
+    for(let j=0;j<NY;j++){const depth=j/(NY-1);for(let i=0;i<NX;i++){
+      const k=j*NX+i,pi=k*4;
+      if(depth>sTr[i]){d[pi]=15;d[pi+1]=12;d[pi+2]=10;d[pi+3]=255;continue;}
+      const ti=clamp((sT[k]/30*255)|0,0,255)*3;
+      let r=TLUT[ti],g=TLUT[ti+1],b=TLUT[ti+2];
+      if(sb){
+        const pv=sP[k];
         if(pv>0.01){const bl=clamp(pv*2.5,0,0.7);r=lerp(r,25,bl)|0;g=lerp(g,185,bl)|0;b=lerp(b,45,bl)|0;}
       }
       d[pi]=r;d[pi+1]=g;d[pi+2]=b;d[pi+3]=230;
-    }
+    }}
     this.offCtx.putImageData(this.img,0,0);
     ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';
     ctx.drawImage(this.off,this.oceanLeft,this.oceanTop-18,this.oceanW,this.oceanH+18);
+  }
+
+  drawNutrients(ctx){
+    const oL=this.oceanLeft,oW=this.oceanW,oT=this.oceanTop,oH=this.oceanH;
+    const step=4;
+    for(let j=0;j<NY;j+=step)for(let i=0;i<NX;i+=step){
+      const k=j*NX+i,n=sim.nutrients[k];
+      if(n<0.1)continue;
+      const alpha=clamp(n*0.35,0,0.3);
+      const sx=oL+(i/(NX-1))*oW,sy=oT+(j/(NY-1))*oH;
+      const w=(step/(NX-1))*oW+1,h=(step/(NY-1))*oH+1;
+      ctx.fillStyle=`rgba(180,140,50,${alpha})`;
+      ctx.fillRect(sx,sy,w,h);
+    }
   }
 
   drawSky(ctx,time){
@@ -516,12 +812,11 @@ class Renderer{
     const sg=ctx.createLinearGradient(0,0,0,wY+15);
     sg.addColorStop(0,'#060818');sg.addColorStop(0.55,'#0a1230');sg.addColorStop(1,'#101a3c');
     ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(this.vw,0);ctx.lineTo(this.vw,wY+18);
-    for(let px=Math.ceil(this.oceanW);px>=0;px-=1){
+    for(let px=Math.ceil(this.oceanW);px>=0;px-=2){
       const gx=(px/this.oceanW)*NX,h=vis.showWaves?this.waves.getHeight(gx):0;
       ctx.lineTo(this.oceanLeft+px,wY+h);
     }
     ctx.lineTo(0,wY+18);ctx.closePath();ctx.fillStyle=sg;ctx.fill();
-
     const[sunX,sunY]=this.sunScreenPos();
     const sunR=18*clamp(params.solar,0,2);
     if(params.solar>0.1){
@@ -545,61 +840,143 @@ class Renderer{
   }
 
   drawAtmo(ctx){
-    const aT=8,aB=this.oceanTop,aH=aB-aT;
+    const aT=8,aB=this.baseOceanTop,aH=aB-aT,oL=this.baseOceanLeft,oW=this.baseOceanW;
+    ctx.lineWidth=0.8;ctx.strokeStyle='rgba(140,170,210,0.08)';
+    ctx.beginPath();
+    for(const p of this.atmo.particles){
+      if(p.trail.length<2||p.life<15)continue;
+      const age=p.life/p.maxLife;if(age>0.9)continue;
+      for(let t=0;t<p.trail.length;t++){const pt=p.trail[t],sx=oL+pt.x*oW,sy=aT+(1-pt.y)*aH;t===0?ctx.moveTo(sx,sy):ctx.lineTo(sx,sy);}
+    }
+    ctx.stroke();
+    ctx.lineWidth=1.1;ctx.strokeStyle='rgba(220,180,100,0.12)';
+    ctx.beginPath();
+    let hasWarm=false;
     for(const p of this.atmo.particles){
       if(p.trail.length<2)continue;
-      const age=p.life/p.maxLife,alpha=Math.min(1,p.life/20)*(1-age*age)*0.55;
-      const w=clamp((p.temp-5)/20,0,1);
-      const r=lerp(100,240,w)|0,g=lerp(160,170,w)|0,b=lerp(230,80,w)|0;
-      ctx.beginPath();
-      for(let t=0;t<p.trail.length;t++){const pt=p.trail[t],sx=this.oceanLeft+pt.x*this.oceanW,sy=aT+(1-pt.y)*aH;t===0?ctx.moveTo(sx,sy):ctx.lineTo(sx,sy);}
-      ctx.strokeStyle=`rgba(${r},${g},${b},${alpha*(0.3+w*0.4)})`;ctx.lineWidth=p.size;ctx.stroke();
-      const last=p.trail[p.trail.length-1];
-      ctx.fillStyle=`rgba(${r},${g},${b},${alpha*0.7})`;ctx.beginPath();ctx.arc(this.oceanLeft+last.x*this.oceanW,aT+(1-last.y)*aH,p.size*0.8,0,Math.PI*2);ctx.fill();
+      if(p.temp<15)continue;
+      hasWarm=true;
+      for(let t=0;t<p.trail.length;t++){const pt=p.trail[t],sx=oL+pt.x*oW,sy=aT+(1-pt.y)*aH;t===0?ctx.moveTo(sx,sy):ctx.lineTo(sx,sy);}
     }
+    if(hasWarm)ctx.stroke();
   }
 
   drawCurrents(ctx){
+    const oL=this.oceanLeft,oW=this.oceanW,oT=this.oceanTop,oH=this.oceanH,nx1=NX-1,ny1=NY-1;
+    ctx.lineWidth=0.8;ctx.strokeStyle='rgba(115,175,235,0.07)';
+    ctx.beginPath();
     for(const p of this.currents.particles){
-      if(p.trail.length<2)continue;
-      const age=p.life/p.maxLife,alpha=Math.min(1,p.life/30)*(1-age*age)*0.6;
-      ctx.beginPath();
-      for(let t=0;t<p.trail.length;t++){const pt=p.trail[t],s=this.g2s(pt.x,pt.y);t===0?ctx.moveTo(s[0],s[1]):ctx.lineTo(s[0],s[1]);}
-      const spd=Math.sqrt(this.fluid.bilerp(this.fluid.u,p.x,p.y)**2+this.fluid.bilerp(this.fluid.v,p.x,p.y)**2);
-      const intensity=clamp(spd*8,0,1);
-      ctx.strokeStyle=`rgba(${lerp(100,200,intensity)|0},${lerp(160,230,intensity)|0},${lerp(220,255,intensity)|0},${alpha*(0.3+intensity*0.5)})`;
-      ctx.lineWidth=p.size*(0.5+intensity);ctx.stroke();
+      if(p.trail.length<2||p.life<10)continue;
+      const age=p.life/p.maxLife;if(age>0.92)continue;
+      for(let t=0;t<p.trail.length;t++){const pt=p.trail[t],sx=oL+(pt.x/nx1)*oW,sy=oT+(pt.y/ny1)*oH;t===0?ctx.moveTo(sx,sy):ctx.lineTo(sx,sy);}
     }
+    ctx.stroke();
+    ctx.lineWidth=1.3;ctx.strokeStyle='rgba(175,220,255,0.18)';
+    ctx.beginPath();
+    let hasFast=false;
+    for(const p of this.currents.particles){
+      if(p.trail.length<3)continue;
+      const ux=sim.u[clamp((Math.floor(p.y)*NX+Math.floor(p.x))|0,0,NX*NY-1)];
+      const vx=sim.v[clamp((Math.floor(p.y)*NX+Math.floor(p.x))|0,0,NX*NY-1)];
+      if(ux*ux+vx*vx<0.001)continue;
+      hasFast=true;
+      for(let t=0;t<p.trail.length;t++){const pt=p.trail[t],sx=oL+(pt.x/nx1)*oW,sy=oT+(pt.y/ny1)*oH;t===0?ctx.moveTo(sx,sy):ctx.lineTo(sx,sy);}
+    }
+    if(hasFast)ctx.stroke();
   }
 
   drawEco(ctx,time){
-    const eco=this.eco;if(!eco)return;
-    for(const z of eco.zoo){
+    // Zoo plankton
+    ctx.fillStyle='rgba(215,170,50,0.55)';
+    for(const z of sim.zoo){
       const[sx,sy]=this.g2s(z.x,z.y);
-      const e=clamp(z.energy,0,1.5);
-      ctx.fillStyle=`rgba(215,170,50,${0.4+e*0.3})`;
-      ctx.beginPath();ctx.arc(sx,sy,2+e*0.5,0,Math.PI*2);ctx.fill();
+      ctx.beginPath();ctx.arc(sx,sy,2.2,0,Math.PI*2);ctx.fill();
     }
-    for(const f of eco.fish){
-      if(f.trail.length>1){
-        ctx.beginPath();
-        for(let t=0;t<f.trail.length;t++){const pt=f.trail[t],s=this.g2s(pt.x,pt.y);t===0?ctx.moveTo(s[0],s[1]):ctx.lineTo(s[0],s[1]);}
-        ctx.strokeStyle='rgba(80,200,230,0.25)';ctx.lineWidth=1.5;ctx.stroke();
+
+    // Trilobites — brown segmented ovals on seafloor
+    if(sim.trilobites.length>0){
+      ctx.fillStyle='rgba(160,110,60,0.7)';
+      ctx.strokeStyle='rgba(120,80,40,0.4)';ctx.lineWidth=0.8;
+      for(const t of sim.trilobites){
+        const[sx,sy]=this.g2s(t.x,t.y);
+        ctx.beginPath();ctx.ellipse(sx,sy,4,2.5,0,0,Math.PI*2);ctx.fill();ctx.stroke();
+        ctx.beginPath();ctx.moveTo(sx-2,sy-2.5);ctx.lineTo(sx-2,sy+2.5);ctx.moveTo(sx,sy-2.5);ctx.lineTo(sx,sy+2.5);ctx.moveTo(sx+2,sy-2.5);ctx.lineTo(sx+2,sy+2.5);
+        ctx.strokeStyle='rgba(100,70,30,0.3)';ctx.stroke();
+        ctx.strokeStyle='rgba(120,80,40,0.4)';
       }
-      const[sx,sy]=this.g2s(f.x,f.y);
-      const e=clamp(f.energy,0,2);
-      const glow=ctx.createRadialGradient(sx,sy,0,sx,sy,6);
-      glow.addColorStop(0,`rgba(80,200,240,${0.15+e*0.05})`);glow.addColorStop(1,'rgba(80,200,240,0)');
-      ctx.fillStyle=glow;ctx.fillRect(sx-6,sy-6,12,12);
-      ctx.fillStyle=`rgba(150,230,250,${0.6+e*0.2})`;
-      ctx.beginPath();ctx.arc(sx,sy,2.5+e*0.3,0,Math.PI*2);ctx.fill();
+    }
+
+    // Jellyfish — translucent bell + tentacles
+    if(sim.jellyfish.length>0){
+      for(const j of sim.jellyfish){
+        const[sx,sy]=this.g2s(j.x,j.y);
+        const pulseR=3+Math.sin(j.pulse||0)*0.8;
+        ctx.fillStyle='rgba(210,110,180,0.25)';
+        ctx.beginPath();ctx.arc(sx,sy,pulseR,Math.PI,0);ctx.fill();
+        ctx.strokeStyle='rgba(220,130,200,0.4)';ctx.lineWidth=0.8;
+        ctx.beginPath();ctx.arc(sx,sy,pulseR,Math.PI,0);ctx.stroke();
+        if(j.trail.length>1){
+          ctx.strokeStyle='rgba(200,120,180,0.15)';ctx.lineWidth=0.5;
+          ctx.beginPath();
+          for(let ti=0;ti<j.trail.length;ti++){
+            const pt=j.trail[ti],ps=this.g2s(pt.x,pt.y);
+            ti===0?ctx.moveTo(ps[0],ps[1]):ctx.lineTo(ps[0],ps[1]);
+          }
+          ctx.stroke();
+          ctx.beginPath();
+          for(let ti=0;ti<j.trail.length;ti++){
+            const pt=j.trail[ti],ps=this.g2s(pt.x+0.3,pt.y+0.2);
+            ti===0?ctx.moveTo(ps[0],ps[1]):ctx.lineTo(ps[0],ps[1]);
+          }
+          ctx.stroke();
+        }
+      }
+    }
+
+    // Fish
+    if(sim.fish.length>0){
+      ctx.strokeStyle='rgba(80,200,230,0.25)';ctx.lineWidth=1.5;
+      ctx.beginPath();
+      for(const f of sim.fish){
+        if(f.trail.length<2)continue;
+        for(let t=0;t<f.trail.length;t++){const pt=f.trail[t],s=this.g2s(pt.x,pt.y);t===0?ctx.moveTo(s[0],s[1]):ctx.lineTo(s[0],s[1]);}
+      }
+      ctx.stroke();
+      for(const f of sim.fish){
+        const[sx,sy]=this.g2s(f.x,f.y);
+        ctx.drawImage(this.glowSprite,sx-8,sy-8);
+        ctx.fillStyle='rgba(150,230,250,0.75)';
+        ctx.beginPath();ctx.arc(sx,sy,2.8,0,Math.PI*2);ctx.fill();
+      }
+    }
+
+    // Anomalocaris — large apex predator
+    if(sim.anomalocaris.length>0){
+      for(const a of sim.anomalocaris){
+        const[sx,sy]=this.g2s(a.x,a.y);
+        ctx.drawImage(this.anomSprite,sx-10,sy-10);
+        if(a.trail.length>1){
+          ctx.strokeStyle='rgba(230,80,40,0.2)';ctx.lineWidth=2;
+          ctx.beginPath();
+          for(let t=0;t<a.trail.length;t++){const pt=a.trail[t],s=this.g2s(pt.x,pt.y);t===0?ctx.moveTo(s[0],s[1]):ctx.lineTo(s[0],s[1]);}
+          ctx.stroke();
+        }
+        ctx.fillStyle='rgba(230,80,40,0.8)';
+        ctx.beginPath();
+        ctx.moveTo(sx+5,sy);ctx.lineTo(sx-4,sy-3.5);ctx.lineTo(sx-4,sy+3.5);ctx.closePath();ctx.fill();
+        ctx.strokeStyle='rgba(230,120,60,0.5)';ctx.lineWidth=0.8;
+        ctx.beginPath();
+        ctx.moveTo(sx+5,sy-1);ctx.quadraticCurveTo(sx+8,sy-5,sx+4,sy-7);
+        ctx.moveTo(sx+5,sy+1);ctx.quadraticCurveTo(sx+8,sy+5,sx+4,sy+7);
+        ctx.stroke();
+      }
     }
   }
 
   drawVel(ctx){
     ctx.strokeStyle='rgba(200,220,255,0.25)';ctx.lineWidth=0.8;
     for(let j=2;j<NY-2;j+=5)for(let i=2;i<NX-2;i+=5){
-      const k=this.fluid.idx(i,j),u=this.fluid.u[k],v=this.fluid.v[k];
+      const k=j*NX+i,u=sim.u[k],v=sim.v[k];
       if(u*u+v*v<1e-6)continue;
       const s=this.g2s(i,j),e=this.g2s(i+u*15,j+v*15);
       ctx.beginPath();ctx.moveTo(s[0],s[1]);ctx.lineTo(e[0],e[1]);ctx.stroke();
@@ -607,19 +984,19 @@ class Renderer{
   }
 
   drawTerrain(ctx){
-    const s0=this.g2s(0,this.fluid.terrain[0]*(NY-1));
+    const s0=this.g2s(0,sim.terrain[0]*(NY-1));
     ctx.beginPath();ctx.moveTo(s0[0],s0[1]);
-    for(let i=1;i<NX;i++){const s=this.g2s(i,this.fluid.terrain[i]*(NY-1));ctx.lineTo(s[0],s[1]);}
+    for(let i=1;i<NX;i++){const s=this.g2s(i,sim.terrain[i]*(NY-1));ctx.lineTo(s[0],s[1]);}
     ctx.lineTo(this.oceanRight,this.oceanBottom+5);ctx.lineTo(this.oceanLeft,this.oceanBottom+5);ctx.closePath();
     const tg=ctx.createLinearGradient(0,this.oceanH*0.8+this.oceanTop,0,this.oceanBottom);
     tg.addColorStop(0,'#1a1510');tg.addColorStop(0.5,'#12100c');tg.addColorStop(1,'#0a0908');
     ctx.fillStyle=tg;ctx.fill();
     ctx.strokeStyle='rgba(60,50,35,0.5)';ctx.lineWidth=1;
-    ctx.beginPath();ctx.moveTo(s0[0],s0[1]);for(let i=1;i<NX;i++){const s=this.g2s(i,this.fluid.terrain[i]*(NY-1));ctx.lineTo(s[0],s[1]);}ctx.stroke();
-    const ri=Math.floor(NX*0.45),rs=this.g2s(ri,this.fluid.terrain[ri]*(NY-1));
-    const vg=ctx.createRadialGradient(rs[0],rs[1],0,rs[0],rs[1],25);
-    vg.addColorStop(0,'rgba(255,80,20,0.15)');vg.addColorStop(0.5,'rgba(255,40,10,0.05)');vg.addColorStop(1,'rgba(255,20,5,0)');
-    ctx.fillStyle=vg;ctx.fillRect(rs[0]-25,rs[1]-25,50,50);
+    ctx.beginPath();ctx.moveTo(s0[0],s0[1]);for(let i=1;i<NX;i++){const s=this.g2s(i,sim.terrain[i]*(NY-1));ctx.lineTo(s[0],s[1]);}ctx.stroke();
+    const ri=Math.floor(NX*0.45),rs=this.g2s(ri,sim.terrain[ri]*(NY-1));
+    const vg=ctx.createRadialGradient(rs[0],rs[1],0,rs[0],rs[1],35);
+    vg.addColorStop(0,'rgba(255,100,30,0.25)');vg.addColorStop(0.4,'rgba(255,60,15,0.1)');vg.addColorStop(1,'rgba(255,20,5,0)');
+    ctx.fillStyle=vg;ctx.fillRect(rs[0]-35,rs[1]-35,70,70);
   }
 
   drawDepth(ctx){
@@ -638,99 +1015,154 @@ class Renderer{
   }
 }
 
-// ==================== INPUT ====================
-function setupInput(canvas,renderer,fluid,eco){
+// ==================== MAIN ====================
+function main(){
+  const canvas=document.getElementById('ocean');
+  const workerBlob=new Blob(
+    [document.getElementById('sim-worker').textContent],
+    {type:'text/javascript'}
+  );
+  const worker=new Worker(URL.createObjectURL(workerBlob));
+
+  worker.onmessage=function(e){
+    if(e.data.type==='state'){
+      const d=e.data;
+      sim.T.set(d.T);sim.u.set(d.u);sim.v.set(d.v);
+      sim.windU.set(d.windU);sim.nutrients.set(d.nutrients);sim.phyto.set(d.phyto);
+      if(!sim.ready){sim.terrain.set(d.terrain);sim.ready=true;}
+      sim.zoo=d.zoo;sim.fish=d.fish;
+      sim.trilobites=d.trilobites;sim.jellyfish=d.jellyfish;sim.anomalocaris=d.anomalocaris;
+      sim.windStrength=d.windStrength;sim.phytoTotal=d.phytoTotal;
+    }
+  };
+
+  function syncParams(){
+    worker.postMessage({type:'params',solar:params.solar,buoyancy:params.buoyancy,
+      diffusion:params.diffusion,speed:params.speed,sunNormX:sunNormX});
+  }
+
+  const currents=new CurrentParticles();
+  const waves=new WaveSystem();
+  const atmo=new AtmosphereSystem();
+  const renderer=new Renderer(canvas,currents,waves,atmo);
+
+  // ==================== INPUT ====================
   function getPos(e){
     const r=canvas.getBoundingClientRect();
     const t=e.touches?e.touches[0]:e;
     return[t.clientX-r.left,t.clientY-r.top];
   }
+  let panning=false,pinching=false,lastPinchDist=0,lastPinchCX=0,lastPinchCY=0;
+  function clampPan(){
+    const mX=renderer.baseOceanW*(zoom-1)/2,mY=renderer.baseOceanH*(zoom-1)/2;
+    panX=clamp(panX,-mX,mX);panY=clamp(panY,-mY,mY);
+  }
   function onDown(e){
     e.preventDefault();
+    if(e.touches&&e.touches.length>=2){
+      pinching=true;const t=e.touches;
+      lastPinchDist=Math.hypot(t[0].clientX-t[1].clientX,t[0].clientY-t[1].clientY);
+      const r=canvas.getBoundingClientRect();
+      lastPinchCX=(t[0].clientX+t[1].clientX)/2-r.left;
+      lastPinchCY=(t[0].clientY+t[1].clientY)/2-r.top;return;
+    }
+    if(!e.touches&&(e.button===2||(e.button===0&&e.shiftKey))){
+      panning=true;mouse.px=e.clientX;mouse.py=e.clientY;canvas.style.cursor='move';return;
+    }
     const[x,y]=getPos(e);mouse.x=x;mouse.y=y;mouse.px=x;mouse.py=y;mouse.down=true;
     const[sx,sy]=renderer.sunScreenPos();
     if(Math.hypot(x-sx,y-sy)<30){mouse.draggingSun=true;canvas.style.cursor='grab';return;}
     if(renderer.inOcean(x,y)&&currentTool!=='force'){
       const[gi,gj]=renderer.s2g(x,y);
-      if(currentTool==='phyto'){
-        const ci=clamp(Math.floor(gi),1,NX-2),cj=clamp(Math.floor(gj),1,NY-2);
-        for(let dj=-2;dj<=2;dj++)for(let di=-2;di<=2;di++){
-          const ii=ci+di,jj=cj+dj;if(ii<0||ii>=NX||jj<0||jj>=NY)continue;
-          eco.phyto[jj*NX+ii]=Math.min(1.5,eco.phyto[jj*NX+ii]+0.3);
-        }
-      }else if(currentTool==='zoo'){eco.zoo.push(eco.createZoo(gi,gj));}
-      else if(currentTool==='fish'){eco.fish.push(eco.createFish(gi,gj));}
+      worker.postMessage({type:'place',tool:currentTool,gi:gi,gj:gj});
     }
   }
+  let tipRAF=0;
   function onMove(e){
     e.preventDefault();
+    if(pinching&&e.touches&&e.touches.length>=2){
+      const t=e.touches,dx=t[0].clientX-t[1].clientX,dy=t[0].clientY-t[1].clientY;
+      const dist=Math.hypot(dx,dy),rect=canvas.getBoundingClientRect();
+      const cx=(t[0].clientX+t[1].clientX)/2-rect.left,cy=(t[0].clientY+t[1].clientY)/2-rect.top;
+      if(lastPinchDist>0){
+        const oldZoom=zoom;zoom=clamp(zoom*dist/lastPinchDist,1,5);
+        const zr=zoom/oldZoom,bCx=renderer.baseOceanLeft+renderer.baseOceanW/2,bCy=renderer.baseOceanTop+renderer.baseOceanH/2;
+        panX=(1-zr)*(cx-bCx)+panX*zr+(cx-lastPinchCX);
+        panY=(1-zr)*(cy-bCy)+panY*zr+(cy-lastPinchCY);clampPan();
+      }
+      lastPinchDist=dist;lastPinchCX=cx;lastPinchCY=cy;return;
+    }
+    if(panning){panX+=e.clientX-mouse.px;panY+=e.clientY-mouse.py;mouse.px=e.clientX;mouse.py=e.clientY;clampPan();return;}
     const[x,y]=getPos(e);mouse.px=mouse.x;mouse.py=mouse.y;mouse.x=x;mouse.y=y;
     if(mouse.draggingSun){
       sunNormX=clamp((x-renderer.oceanLeft)/renderer.oceanW,0.05,0.95);
+      syncParams();
       return;
     }
     if(mouse.down&&currentTool==='force'&&renderer.inOcean(x,y)){
       const[gi,gj]=renderer.s2g(x,y);
       const dx=(x-mouse.px)/renderer.oceanW*(NX-1)*0.4;
       const dy=(y-mouse.py)/renderer.oceanH*(NY-1)*0.4;
-      const R=3;
-      for(let dj=-R;dj<=R;dj++)for(let di=-R;di<=R;di++){
-        const ii=Math.floor(gi)+di,jj=Math.floor(gj)+dj;
-        if(ii<1||ii>=NX-1||jj<1||jj>=NY-1)continue;
-        const dist=Math.sqrt(di*di+dj*dj);if(dist>R)continue;
-        const fade=1-dist/R,k=jj*NX+ii;
-        fluid.u[k]+=dx*fade;fluid.v[k]+=dy*fade;
-      }
+      worker.postMessage({type:'force',gi:gi,gj:gj,dx:dx,dy:dy});
     }
-    const tip=document.getElementById('tip');
-    if(renderer.inOcean(x,y)){
-      const[gi,gj]=renderer.s2g(x,y);
-      const ci=clamp(Math.floor(gi),0,NX-1),cj=clamp(Math.floor(gj),0,NY-1);
-      const k=cj*NX+ci,depth=Math.floor((cj/(NY-1))*5000);
-      let tipText=`${depth}m  ${fluid.T[k].toFixed(1)}°C  N:${eco.nutrients[k].toFixed(2)}  P:${eco.phyto[k].toFixed(2)}`;
-      let nearD=20,nearOrg=null,nearType='';
-      for(const z of eco.zoo){const[sx,sy]=renderer.g2s(z.x,z.y);const d=Math.hypot(x-sx,y-sy);if(d<nearD){nearD=d;nearOrg=z;nearType='zoo';}}
-      for(const f of eco.fish){const[sx,sy]=renderer.g2s(f.x,f.y);const d=Math.hypot(x-sx,y-sy);if(d<nearD){nearD=d;nearOrg=f;nearType='fish';}}
-      if(nearOrg){
-        const od=Math.floor((nearOrg.y/(NY-1))*5000),ot=fluid.bilerp(fluid.T,nearOrg.x,nearOrg.y).toFixed(1);
-        if(nearType==='zoo'){
-          const lp=eco.phyto[clamp(Math.floor(nearOrg.y),0,NY-1)*NX+clamp(Math.floor(nearOrg.x),0,NX-1)];
-          tipText=`浮游动物 | 能量:${nearOrg.energy.toFixed(2)} | ${od}m ${ot}°C | 食物密度:${lp.toFixed(3)}`;
-        }else{
-          let md=Infinity;for(const z of eco.zoo){const d=Math.hypot(z.x-nearOrg.x,z.y-nearOrg.y);if(d<md)md=d;}
-          tipText=`鱼类 | 能量:${nearOrg.energy.toFixed(2)} | ${od}m ${ot}°C | 猎物距离:${md<Infinity?(md*5000/NY|0)+'m':'无'}`;
-        }
-      }else if(eco.phyto[k]>0.05){
-        const light=params.solar*Math.exp(-(cj/(NY-1))*5);
-        tipText=`浮游植物区 | 密度:${eco.phyto[k].toFixed(3)} | 光照:${light.toFixed(2)} | 养分:${eco.nutrients[k].toFixed(3)}`;
-      }
-      tip.textContent=tipText;tip.style.left=(x+15)+'px';tip.style.top=(y-10)+'px';tip.style.display='block';
-    }else{tip.style.display='none';}
+    if(!tipRAF){
+      tipRAF=requestAnimationFrame(()=>{
+        tipRAF=0;
+        const tip=document.getElementById('tip');
+        if(renderer.inOcean(mouse.x,mouse.y)){
+          const[gi,gj]=renderer.s2g(mouse.x,mouse.y);
+          const ci=clamp(Math.floor(gi),0,NX-1),cj=clamp(Math.floor(gj),0,NY-1);
+          const k=cj*NX+ci,depth=Math.floor((cj/(NY-1))*5000);
+          let tipText=`${depth}m  ${sim.T[k].toFixed(1)}°C  N:${sim.nutrients[k].toFixed(2)}  P:${sim.phyto[k].toFixed(2)}`;
+          let nearD=20,nearOrg=null,nearType='';
+          for(const z of sim.zoo){const[sx,sy]=renderer.g2s(z.x,z.y);const d=Math.hypot(mouse.x-sx,mouse.y-sy);if(d<nearD){nearD=d;nearOrg=z;nearType='zoo';}}
+          for(const f of sim.fish){const[sx,sy]=renderer.g2s(f.x,f.y);const d=Math.hypot(mouse.x-sx,mouse.y-sy);if(d<nearD){nearD=d;nearOrg=f;nearType='fish';}}
+          for(const t of sim.trilobites){const[sx,sy]=renderer.g2s(t.x,t.y);const d=Math.hypot(mouse.x-sx,mouse.y-sy);if(d<nearD){nearD=d;nearOrg=t;nearType='trilobite';}}
+          for(const j of sim.jellyfish){const[sx,sy]=renderer.g2s(j.x,j.y);const d=Math.hypot(mouse.x-sx,mouse.y-sy);if(d<nearD){nearD=d;nearOrg=j;nearType='jellyfish';}}
+          for(const a of sim.anomalocaris){const[sx,sy]=renderer.g2s(a.x,a.y);const d=Math.hypot(mouse.x-sx,mouse.y-sy);if(d<nearD){nearD=d;nearOrg=a;nearType='anomalocaris';}}
+          if(nearOrg){
+            const od=Math.floor((nearOrg.y/(NY-1))*5000),ot=bilerp(sim.T,nearOrg.x,nearOrg.y).toFixed(1);
+            if(nearType==='zoo'){
+              const lp=sim.phyto[clamp(Math.floor(nearOrg.y),0,NY-1)*NX+clamp(Math.floor(nearOrg.x),0,NX-1)];
+              tipText=`浮游动物 | 能量:${nearOrg.energy.toFixed(2)} | ${od}m ${ot}°C | 食物密度:${lp.toFixed(3)}`;
+            }else if(nearType==='fish'){
+              let md=Infinity;for(const z of sim.zoo){const d=Math.hypot(z.x-nearOrg.x,z.y-nearOrg.y);if(d<md)md=d;}
+              tipText=`鱼类 | 能量:${nearOrg.energy.toFixed(2)} | ${od}m ${ot}°C | 猎物距离:${md<Infinity?(md*5000/NY|0)+'m':'无'}`;
+            }else if(nearType==='trilobite'){
+              const ln=sim.nutrients[clamp(Math.floor(nearOrg.y),0,NY-1)*NX+clamp(Math.floor(nearOrg.x),0,NX-1)];
+              tipText=`三叶虫 | 能量:${nearOrg.energy.toFixed(2)} | ${od}m ${ot}°C | 营养盐:${ln.toFixed(3)} | 底栖食碎屑`;
+            }else if(nearType==='jellyfish'){
+              let md=Infinity;for(const z of sim.zoo){const d=Math.hypot(z.x-nearOrg.x,z.y-nearOrg.y);if(d<md)md=d;}
+              tipText=`水母 | 能量:${nearOrg.energy.toFixed(2)} | ${od}m ${ot}°C | 猎物距离:${md<Infinity?(md*5000/NY|0)+'m':'无'} | 滤食浮游`;
+            }else if(nearType==='anomalocaris'){
+              let md=Infinity;
+              for(const f of sim.fish){const d=Math.hypot(f.x-nearOrg.x,f.y-nearOrg.y);if(d<md)md=d;}
+              for(const t of sim.trilobites){const d=Math.hypot(t.x-nearOrg.x,t.y-nearOrg.y);if(d<md)md=d;}
+              tipText=`奇虾 | 能量:${nearOrg.energy.toFixed(2)} | ${od}m ${ot}°C | 猎物距离:${md<Infinity?(md*5000/NY|0)+'m':'无'} | 顶级掠食者`;
+            }
+          }else if(sim.phyto[k]>0.05){
+            const light=params.solar*Math.exp(-(cj/(NY-1))*5);
+            tipText=`浮游植物区 | 密度:${sim.phyto[k].toFixed(3)} | 光照:${light.toFixed(2)} | 养分:${sim.nutrients[k].toFixed(3)}`;
+          }
+          tip.textContent=tipText;tip.style.left=(mouse.x+15)+'px';tip.style.top=(mouse.y-10)+'px';tip.style.display='block';
+        }else{document.getElementById('tip').style.display='none';}
+      });
+    }
   }
-  function onUp(){mouse.down=false;mouse.draggingSun=false;canvas.style.cursor='crosshair';}
+  function onUp(){mouse.down=false;mouse.draggingSun=false;panning=false;pinching=false;lastPinchDist=0;canvas.style.cursor='crosshair';}
   canvas.addEventListener('mousedown',onDown);canvas.addEventListener('mousemove',onMove);canvas.addEventListener('mouseup',onUp);canvas.addEventListener('mouseleave',onUp);
   canvas.addEventListener('touchstart',onDown,{passive:false});canvas.addEventListener('touchmove',onMove,{passive:false});canvas.addEventListener('touchend',onUp);
-}
+  canvas.addEventListener('contextmenu',e=>e.preventDefault());
+  canvas.addEventListener('wheel',(e)=>{
+    e.preventDefault();const rect=canvas.getBoundingClientRect();
+    const mx=e.clientX-rect.left,my=e.clientY-rect.top;
+    const oldZoom=zoom;zoom=clamp(zoom*(e.deltaY<0?1.1:1/1.1),1,5);
+    const r=zoom/oldZoom,bCx=renderer.baseOceanLeft+renderer.baseOceanW/2,bCy=renderer.baseOceanTop+renderer.baseOceanH/2;
+    panX=(1-r)*(mx-bCx)+panX*r;panY=(1-r)*(my-bCy)+panY*r;clampPan();
+  },{passive:false});
+  canvas.addEventListener('dblclick',()=>{zoom=1;panX=0;panY=0;});
 
-// ==================== PRESETS ====================
-function loadPreset(name,fluid,eco,waves){
-  waves.reset();
-  fluid.u.fill(0);fluid.v.fill(0);
-  switch(name){
-    case'empty':params.solar=0.5;sunNormX=0.5;break;
-    case'primordial':params.solar=1;sunNormX=0.85;break;
-    case'full':params.solar=1;sunNormX=0.85;break;
-    case'extreme':params.solar=2;sunNormX=0.9;break;
-    case'ice':params.solar=0.2;sunNormX=0.15;break;
-  }
-  document.getElementById('solar-s').value=params.solar;
-  document.getElementById('solar-v').textContent=params.solar.toFixed(1);
-  fluid.initTemp();
-  eco.seed(name);
-}
-
-// ==================== UI BINDING ====================
-function setupUI(fluid,eco,waves){
+  // ==================== UI BINDING ====================
   document.querySelectorAll('.tool-btn').forEach(btn=>{
     btn.addEventListener('click',()=>{
       document.querySelectorAll('.tool-btn').forEach(b=>b.classList.remove('active'));
@@ -739,19 +1171,34 @@ function setupUI(fluid,eco,waves){
   });
   document.getElementById('btn-pause').addEventListener('click',function(){
     paused=!paused;this.textContent=paused?'▶':'⏸';
+    worker.postMessage({type:'pause',paused:paused});
   });
   document.querySelectorAll('.spd').forEach(btn=>{
     btn.addEventListener('click',()=>{
       document.querySelectorAll('.spd').forEach(b=>b.classList.remove('active'));
       btn.classList.add('active');params.speed=parseInt(btn.dataset.spd);
+      syncParams();
     });
   });
   const solarS=document.getElementById('solar-s'),solarV=document.getElementById('solar-v');
-  solarS.addEventListener('input',()=>{params.solar=parseFloat(solarS.value);solarV.textContent=params.solar.toFixed(1);});
+  solarS.addEventListener('input',()=>{params.solar=parseFloat(solarS.value);solarV.textContent=params.solar.toFixed(1);syncParams();});
   document.querySelectorAll('.preset').forEach(btn=>{
     btn.addEventListener('click',()=>{
       document.querySelectorAll('.preset').forEach(b=>b.classList.remove('active'));
-      btn.classList.add('active');loadPreset(btn.dataset.p,fluid,eco,waves);
+      btn.classList.add('active');
+      const name=btn.dataset.p;
+      worker.postMessage({type:'preset',name:name});
+      waves.reset();
+      switch(name){
+        case'empty':params.solar=0.5;sunNormX=0.5;break;
+        case'primordial':params.solar=1;sunNormX=0.85;break;
+        case'full':params.solar=1;sunNormX=0.85;break;
+        case'cambrian':params.solar=1.3;sunNormX=0.75;break;
+        case'extreme':params.solar=2;sunNormX=0.9;break;
+        case'ice':params.solar=0.2;sunNormX=0.15;break;
+      }
+      document.getElementById('solar-s').value=params.solar;
+      document.getElementById('solar-v').textContent=params.solar.toFixed(1);
     });
   });
   const visBtn=document.getElementById('btn-vis'),visPanel=document.getElementById('vis-panel');
@@ -761,45 +1208,33 @@ function setupUI(fluid,eco,waves){
   });
   document.querySelectorAll('#vis-panel input[data-param]').forEach(sl=>{
     const valEl=sl.parentElement.querySelector('.bar-val');
-    sl.addEventListener('input',()=>{params[sl.dataset.param]=parseFloat(sl.value);if(valEl)valEl.textContent=parseFloat(sl.value).toFixed(1);});
+    sl.addEventListener('input',()=>{params[sl.dataset.param]=parseFloat(sl.value);if(valEl)valEl.textContent=parseFloat(sl.value).toFixed(1);syncParams();});
   });
   const lc=document.getElementById('lc'),lctx=lc.getContext('2d');
   for(let x=0;x<110;x++){const c=tempToColor(2+(x/109)*26);lctx.fillStyle=`rgb(${c[0]},${c[1]},${c[2]})`;lctx.fillRect(x,0,1,8);}
-}
 
-// ==================== MAIN ====================
-function main(){
-  const canvas=document.getElementById('ocean');
-  const fluid=new FluidSim();
-  fluid.initTemp();
-  const currents=new CurrentParticles(fluid);
-  const waves=new WaveSystem();
-  const atmo=new AtmosphereSystem(fluid);
-  const eco=new Ecosystem(fluid);
-  eco.seed('full');
-  const renderer=new Renderer(canvas,fluid,currents,waves,atmo,eco);
-
-  setupInput(canvas,renderer,fluid,eco);
-  setupUI(fluid,eco,waves);
-
+  // ==================== RENDER LOOP ====================
   let frame=0,lastTime=performance.now(),fpsSmooth=60;
   const popP=document.getElementById('pop-p'),popZ=document.getElementById('pop-z'),popF=document.getElementById('pop-f');
+  const popT=document.getElementById('pop-t'),popJ=document.getElementById('pop-j'),popA=document.getElementById('pop-a');
 
   function loop(){
     const now=performance.now(),dt=now-lastTime;lastTime=now;
     fpsSmooth=fpsSmooth*0.95+(1000/Math.max(dt,1))*0.05;
 
-    if(!paused){
-      for(let s=0;s<params.speed;s++){fluid.step();eco.step();}
-      currents.update();waves.update(fluid.windU,fluid.u);atmo.update();
+    if(sim.ready&&!paused){
+      currents.update();waves.update();atmo.update();
     }
-    renderer.render(frame);
+    if(sim.ready)renderer.render(frame);
 
     if(frame%20===0){
       document.getElementById('fps').textContent=`${fpsSmooth.toFixed(0)} fps`;
-      popP.textContent=`● ${Math.floor(eco.getPhytoTotal()/10)}`;
-      popZ.textContent=`● ${eco.zoo.length}`;
-      popF.textContent=`● ${eco.fish.length}`;
+      popP.textContent=`● ${Math.floor(sim.phytoTotal/10)}`;
+      popZ.textContent=`● ${sim.zoo.length}`;
+      popF.textContent=`● ${sim.fish.length}`;
+      popT.textContent=`● ${sim.trilobites.length}`;
+      popJ.textContent=`● ${sim.jellyfish.length}`;
+      popA.textContent=`● ${sim.anomalocaris.length}`;
     }
     frame++;requestAnimationFrame(loop);
   }

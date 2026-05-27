@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>小确幸 · Small Joys</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0812;overflow:hidden;font-family:'Georgia','Times New Roman',serif;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent;touch-action:none}
+canvas{display:block;position:fixed;top:0;left:0;z-index:1}
+#cursor{position:fixed;pointer-events:none;z-index:100;width:26px;height:26px;border-radius:50%;border:1.5px solid rgba(255,248,231,0.35);transform:translate(-50%,-50%);transition:width 0.15s ease-out,height 0.15s ease-out,border-color 0.4s}
+#cursor.pressing{width:16px;height:16px;border-color:rgba(255,200,107,0.7)}
+#cursor .dot{position:absolute;top:50%;left:50%;width:3px;height:3px;border-radius:50%;background:rgba(255,248,231,0.5);transform:translate(-50%,-50%)}
+#ui-bottom{position:fixed;z-index:10;bottom:36px;left:50%;transform:translateX(-50%);pointer-events:none;display:flex;flex-direction:column;align-items:center;gap:6px}
+#title{color:rgba(255,248,231,0.7);font-size:1.3rem;letter-spacing:0.18em;text-shadow:0 0 30px rgba(255,200,107,0.15);animation:breathe 8s ease-in-out infinite}
+@keyframes breathe{0%,100%{opacity:0.7}50%{opacity:0.9}}
+#hint{color:rgba(255,248,231,0.18);font-size:0.6rem;letter-spacing:0.1em;transition:opacity 2s}
+#hint.gone{opacity:0}
+#mood-name{position:fixed;top:22px;right:22px;z-index:10;color:rgba(255,248,231,0.22);font-size:0.55rem;letter-spacing:0.08em;pointer-events:none;text-align:right;transition:color 1s,opacity 0.6s;line-height:1.5}
+#comfort{position:fixed;z-index:10;top:42%;left:50%;transform:translate(-50%,0);pointer-events:none;color:rgba(255,248,231,0.6);font-size:1.6rem;letter-spacing:0.14em;opacity:0;transition:opacity 2.5s ease,transform 2.5s ease;white-space:nowrap}
+#comfort.show{opacity:1;transform:translate(-50%,-20px)}
+#moods{position:fixed;top:22px;left:22px;z-index:15;display:flex;flex-direction:column;gap:10px}
+.m-dot{width:8px;height:8px;border-radius:50%;border:1.5px solid rgba(255,255,255,0.12);cursor:pointer;transition:all 0.4s ease;opacity:0.35;background:transparent}
+.m-dot:hover{opacity:0.8;transform:scale(1.5)}
+.m-dot.on{opacity:1;transform:scale(1.25);border-color:rgba(255,255,255,0.35)}
+#joys{position:fixed;bottom:22px;right:22px;z-index:10;color:rgba(255,248,231,0.1);font-size:0.48rem;letter-spacing:0.04em;font-family:'Courier New',monospace;pointer-events:none;transition:color 0.6s}
+#joys.flash{color:rgba(255,248,231,0.35)}
+@media(max-width:768px){
+  #title{font-size:1rem}
+  #comfort{font-size:1.2rem}
+  #cursor{display:none}
+  #moods{top:auto;bottom:76px;left:50%;transform:translateX(-50%);flex-direction:row;gap:14px}
+  #ui-bottom{bottom:28px}
+  #joys{bottom:14px;right:14px}
+  #mood-name{top:14px;right:14px;font-size:0.5rem}
+}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="cursor"><div class="dot"></div></div>
+<div id="ui-bottom">
+  <div id="title">小确幸</div>
+  <div id="hint">触碰，让美好发生</div>
+</div>
+<div id="mood-name"></div>
+<div id="comfort"></div>
+<div id="moods"></div>
+<div id="joys">joys: 0</div>
+
+<script>
+(function(){
+'use strict';
+
+var MOODS = [
+  { name:'暖阳', en:'Warm Sun',
+    bg:['#0c0a08','#0a0710'],
+    particles:['#FFD700','#FFC46B','#FFA726','#FFE0B2','#FFF3E0'],
+    trail:['#FFD700','#FF9E80'],
+    accent:'#FFD700' },
+  { name:'晚霞', en:'Sunset',
+    bg:['#0e0810','#100812'],
+    particles:['#FF8A80','#FF80AB','#EA80FC','#F8BBD0','#FFB7C5'],
+    trail:['#FF8A80','#EA80FC'],
+    accent:'#FF8A80' },
+  { name:'极光', en:'Aurora',
+    bg:['#060e10','#080c14'],
+    particles:['#64FFDA','#80CBC4','#A5D6A7','#B2EBF2','#80DEEA'],
+    trail:['#64FFDA','#B388FF'],
+    accent:'#64FFDA' },
+  { name:'星河', en:'Starry River',
+    bg:['#080810','#0a0a16'],
+    particles:['#90CAF9','#B39DDB','#CE93D8','#BBDEFB','#D1C4E9'],
+    trail:['#90CAF9','#CE93D8'],
+    accent:'#90CAF9' }
+];
+
+var MESSAGES = [
+  '此刻很好','你做得很好','慢慢来','深呼吸',
+  '今天辛苦了','你值得所有温柔','世界因你而美',
+  '星星也在看着你','你正在发光','一切都会好的',
+  'Everything is okay','You are enough','Breathe',
+  'This moment is yours'
+];
+
+var PENTATONIC = [261.63,293.66,329.63,392.00,440.00,523.25,587.33,659.26];
+
+var MAX_P = 700;
+var MAX_TRAIL = 80;
+var FIREFLY_N = 55;
+
+var canvas, ctx, W, H, dpr;
+var mx = -200, my = -200, pmx = -200, pmy = -200, mdown = false, mspeed = 0;
+var particles = [];
+var fireflies = [];
+var trail = [];
+var mood = 0;
+var joys = 0;
+var t = 0;
+var audioCtx = null;
+var hintGone = false;
+var comfortTimer = 0;
+var lastComfort = -1;
+
+function lerp(a,b,t){ return a+(b-a)*t; }
+function rand(a,b){ return Math.random()*(b-a)+a; }
+function pick(a){ return a[Math.floor(Math.random()*a.length)]; }
+function clamp(v,lo,hi){ return v<lo?lo:v>hi?hi:v; }
+function dist(x1,y1,x2,y2){ return Math.hypot(x2-x1,y2-y1); }
+
+function hexRgb(hex){
+  var v = parseInt(hex.slice(1),16);
+  return [(v>>16)&255,(v>>8)&255,v&255];
+}
+
+function rgba(hex,a){
+  var c = hexRgb(hex);
+  return 'rgba('+c[0]+','+c[1]+','+c[2]+','+a+')';
+}
+
+function lerpColor(h1,h2,t){
+  var a=hexRgb(h1), b=hexRgb(h2);
+  var r=Math.round(lerp(a[0],b[0],t));
+  var g=Math.round(lerp(a[1],b[1],t));
+  var bl=Math.round(lerp(a[2],b[2],t));
+  return 'rgb('+r+','+g+','+bl+')';
+}
+
+// ═══ AUDIO ═══
+function initAudio(){
+  if(audioCtx) return;
+  try{ audioCtx = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){}
+}
+
+function playNote(freq, dur, vol){
+  if(!audioCtx) return;
+  try{
+    var osc = audioCtx.createOscillator();
+    var gain = audioCtx.createGain();
+    var osc2 = audioCtx.createOscillator();
+    var gain2 = audioCtx.createGain();
+
+    osc.type = 'sine';
+    osc.frequency.value = freq;
+    osc2.type = 'sine';
+    osc2.frequency.value = freq * 2.01;
+
+    osc.connect(gain);
+    osc2.connect(gain2);
+    gain.connect(audioCtx.destination);
+    gain2.connect(audioCtx.destination);
+
+    var now = audioCtx.currentTime;
+    var v = vol * 0.12;
+    gain.gain.setValueAtTime(0, now);
+    gain.gain.linearRampToValueAtTime(v, now + 0.03);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + dur);
+    gain2.gain.setValueAtTime(0, now);
+    gain2.gain.linearRampToValueAtTime(v * 0.15, now + 0.05);
+    gain2.gain.exponentialRampToValueAtTime(0.0001, now + dur * 0.7);
+
+    osc.start(now); osc.stop(now + dur);
+    osc2.start(now); osc2.stop(now + dur * 0.7);
+  }catch(e){}
+}
+
+function chime(){
+  var f = pick(PENTATONIC);
+  playNote(f, rand(1.2,2.0), rand(0.5,1));
+  if(Math.random()<0.35){
+    setTimeout(function(){ playNote(f*1.498, rand(0.8,1.4), rand(0.2,0.5)); }, rand(50,120));
+  }
+}
+
+function celebrateSound(){
+  var base = pick(PENTATONIC);
+  var notes = [base, base*1.25, base*1.498, base*2];
+  notes.forEach(function(f,i){
+    setTimeout(function(){ playNote(f, 1.8, 0.7); }, i*120);
+  });
+}
+
+// ═══ FIREFLIES ═══
+function spawnFirefly(){
+  return {
+    x: rand(0,W), y: rand(0,H),
+    vx: rand(-0.15,0.15), vy: rand(-0.3,-0.05),
+    size: rand(1.2,2.8),
+    color: pick(MOODS[mood].particles),
+    phase: rand(0,Math.PI*2),
+    freq: rand(0.01,0.03),
+    baseOpacity: rand(0.2,0.6)
+  };
+}
+
+function initFireflies(){
+  fireflies = [];
+  for(var i=0;i<FIREFLY_N;i++) fireflies.push(spawnFirefly());
+}
+
+function updateFireflies(){
+  var m = MOODS[mood];
+  for(var i=0;i<fireflies.length;i++){
+    var f = fireflies[i];
+    var d = dist(f.x,f.y,mx,my);
+    var attract = d < 200 ? 0.08 / Math.max(d,30) : 0;
+    f.vx += (mx-f.x)*attract*0.3 + rand(-0.01,0.01);
+    f.vy += (my-f.y)*attract*0.3 + rand(-0.01,0.01) - 0.003;
+    f.vx *= 0.99; f.vy *= 0.99;
+    f.x += f.vx; f.y += f.vy;
+
+    if(f.y<-20){ f.y=H+20; f.x=rand(0,W); }
+    if(f.x<-20) f.x=W+20;
+    if(f.x>W+20) f.x=-20;
+
+    f.color = pick(m.particles);
+  }
+}
+
+function drawFireflies(){
+  ctx.save();
+  ctx.globalCompositeOperation='lighter';
+  for(var i=0;i<fireflies.length;i++){
+    var f = fireflies[i];
+    var twinkle = 0.5+0.5*Math.sin(t*f.freq+f.phase);
+    var d = dist(f.x,f.y,mx,my);
+    var proximity = d<150 ? 1+((150-d)/150)*0.8 : 1;
+    var alpha = f.baseOpacity * twinkle * proximity;
+    var size = f.size * (0.8+twinkle*0.4) * proximity;
+
+    var c = hexRgb(f.color);
+    var grad = ctx.createRadialGradient(f.x,f.y,0,f.x,f.y,size*3);
+    grad.addColorStop(0,'rgba('+c[0]+','+c[1]+','+c[2]+','+alpha*0.9+')');
+    grad.addColorStop(0.4,'rgba('+c[0]+','+c[1]+','+c[2]+','+alpha*0.3+')');
+    grad.addColorStop(1,'rgba('+c[0]+','+c[1]+','+c[2]+',0)');
+    ctx.fillStyle=grad;
+    ctx.fillRect(f.x-size*3,f.y-size*3,size*6,size*6);
+  }
+  ctx.restore();
+}
+
+// ═══ PARTICLES ═══
+function spawn(type,x,y,vx,vy,size,color,maxLife,gravity,glow){
+  if(particles.length>=MAX_P){
+    var oldest=0, maxAge=0;
+    for(var i=0;i<particles.length;i++){
+      var age=particles[i].life/particles[i].maxLife;
+      if(age>maxAge){maxAge=age;oldest=i;}
+    }
+    var p=particles[oldest];
+    p.type=type;p.x=x;p.y=y;p.vx=vx;p.vy=vy;p.size=size;p.color=color;p.life=0;p.maxLife=maxLife;p.gravity=gravity||0;p.glow=!!glow;p.friction=0.985;
+    return p;
+  }
+  var p={type:type,x:x,y:y,vx:vx,vy:vy,size:size,color:color,life:0,maxLife:maxLife,gravity:gravity||0,glow:!!glow,friction:0.985};
+  particles.push(p);
+  return p;
+}
+
+function updateParticles(){
+  for(var i=particles.length-1;i>=0;i--){
+    var p=particles[i];
+    p.life++;
+    if(p.life>=p.maxLife){particles.splice(i,1);continue;}
+    p.vx*=p.friction;
+    p.vy*=p.friction;
+    p.vy+=p.gravity;
+    p.x+=p.vx;
+    p.y+=p.vy;
+
+    if(p.type==='bloom' && p.life%3===0 && p.life<p.maxLife*0.6){
+      spawn('sparkle',p.x,p.y,rand(-0.2,0.2),rand(-0.2,0.2),rand(0.8,1.5),p.color,rand(20,40),0,true);
+    }
+  }
+}
+
+function drawParticles(){
+  ctx.save();
+  for(var i=0;i<particles.length;i++){
+    var p=particles[i];
+    var lr=p.life/p.maxLife;
+    var fadeIn=Math.min(p.life/8,1);
+    var fadeOut=1-lr*lr;
+    var alpha=fadeIn*fadeOut;
+    if(alpha<0.01) continue;
+
+    var sz=p.size*(1-lr*0.3);
+    if(p.glow){
+      ctx.globalCompositeOperation='lighter';
+      var c=hexRgb(p.color);
+      var grad=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,sz*2.5);
+      grad.addColorStop(0,'rgba('+c[0]+','+c[1]+','+c[2]+','+alpha*0.8+')');
+      grad.addColorStop(0.5,'rgba('+c[0]+','+c[1]+','+c[2]+','+alpha*0.2+')');
+      grad.addColorStop(1,'rgba('+c[0]+','+c[1]+','+c[2]+',0)');
+      ctx.fillStyle=grad;
+      ctx.fillRect(p.x-sz*2.5,p.y-sz*2.5,sz*5,sz*5);
+    } else {
+      ctx.globalCompositeOperation='lighter';
+      ctx.globalAlpha=alpha;
+      ctx.fillStyle=p.color;
+      ctx.beginPath();
+      ctx.arc(p.x,p.y,sz,0,Math.PI*2);
+      ctx.fill();
+      ctx.globalAlpha=1;
+    }
+  }
+  ctx.globalCompositeOperation='source-over';
+  ctx.restore();
+}
+
+// ═══ TRAIL ═══
+function updateTrail(){
+  if(mspeed>0.5 && mx>0 && my>0){
+    trail.push({x:mx,y:my,t:t,spd:mspeed});
+  }
+  while(trail.length>MAX_TRAIL) trail.shift();
+
+  if(mspeed>3 && Math.random()<0.3){
+    var m=MOODS[mood];
+    spawn('sparkle',mx+rand(-8,8),my+rand(-8,8),rand(-0.5,0.5),rand(-0.8,-0.1),rand(1,2.2),pick(m.particles),rand(20,50),0,true);
+  }
+}
+
+function drawTrail(){
+  if(trail.length<2) return;
+  var m=MOODS[mood];
+  ctx.save();
+  ctx.lineCap='round';
+  ctx.lineJoin='round';
+  ctx.globalCompositeOperation='lighter';
+
+  for(var i=1;i<trail.length;i++){
+    var prev=trail[i-1], curr=trail[i];
+    var pct=i/trail.length;
+    var age=(t-curr.t)/80;
+    if(age>=1) continue;
+    var alpha=Math.pow(1-age,1.5)*pct*0.45;
+    var width=Math.max(0.5, pct * (2.5 + Math.min(curr.spd,20)*0.15) * (1-age));
+
+    var c1=hexRgb(m.trail[0]), c2=hexRgb(m.trail[1]);
+    var r=Math.round(lerp(c2[0],c1[0],pct));
+    var g=Math.round(lerp(c2[1],c1[1],pct));
+    var b=Math.round(lerp(c2[2],c1[2],pct));
+
+    ctx.beginPath();
+    ctx.moveTo(prev.x,prev.y);
+    ctx.lineTo(curr.x,curr.y);
+    ctx.strokeStyle='rgba('+r+','+g+','+b+','+alpha+')';
+    ctx.lineWidth=width;
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+// ═══ EFFECTS ═══
+function burst(x,y,count,spread,sizeRange,lifeRange,grav){
+  var m=MOODS[mood];
+  for(var i=0;i<count;i++){
+    var angle=rand(0,Math.PI*2);
+    var speed=rand(spread*0.3,spread);
+    var vx=Math.cos(angle)*speed;
+    var vy=Math.sin(angle)*speed - rand(0.5,1.5);
+    spawn('burst',x+rand(-3,3),y+rand(-3,3),vx,vy,rand(sizeRange[0],sizeRange[1]),pick(m.particles),rand(lifeRange[0],lifeRange[1]),grav||0.02,true);
+  }
+}
+
+function bloom(x,y){
+  var m=MOODS[mood];
+  spawn('flash',x,y,0,0,30,m.accent,20,0,true);
+
+  var petals=12;
+  for(var i=0;i<petals;i++){
+    var angle=(Math.PI*2/petals)*i + rand(-0.15,0.15);
+    var speed=rand(1.5,3);
+    var p=spawn('bloom',x,y,Math.cos(angle)*speed,Math.sin(angle)*speed-0.5,rand(2.5,4),pick(m.particles),rand(60,100),-0.008,true);
+    p.friction=0.975;
+  }
+
+  burst(x,y,20,2,[1,2.5],[30,60],0.01);
+}
+
+function celebrate(){
+  for(var i=0;i<5;i++){
+    setTimeout(function(){
+      burst(rand(W*0.2,W*0.8),rand(H*0.2,H*0.5),30,4,[1.5,3.5],[50,100],0.025);
+    },i*200);
+  }
+  celebrateSound();
+}
+
+function shower(){
+  var m=MOODS[mood];
+  for(var i=0;i<80;i++){
+    setTimeout(function(){
+      spawn('burst',rand(0,W),-10,rand(-0.5,0.5),rand(1,3),rand(1.5,3),pick(m.particles),rand(80,160),0.015,true);
+    },i*25);
+  }
+}
+
+// ═══ COMFORT TEXT ═══
+var comfortEl=document.getElementById('comfort');
+var comfortShowing=false;
+
+function showComfort(){
+  if(comfortShowing) return;
+  var idx;
+  do{ idx=Math.floor(Math.random()*MESSAGES.length); }while(idx===lastComfort && MESSAGES.length>1);
+  lastComfort=idx;
+
+  comfortEl.textContent=MESSAGES[idx];
+  comfortEl.classList.add('show');
+  comfortShowing=true;
+
+  setTimeout(function(){
+    comfortEl.classList.remove('show');
+    setTimeout(function(){ comfortShowing=false; },2500);
+  },4000);
+}
+
+// ═══ BACKGROUND ═══
+function drawBackground(){
+  var m=MOODS[mood];
+  var breath=0.5+0.5*Math.sin(t*0.005);
+
+  var bg1=hexRgb(m.bg[0]), bg2=hexRgb(m.bg[1]);
+  var grad=ctx.createRadialGradient(W/2,H*0.45,0,W/2,H*0.45,Math.max(W,H)*0.75);
+  var r1=bg1[0]+Math.round(breath*4), g1=bg1[1]+Math.round(breath*3), b1=bg1[2]+Math.round(breath*3);
+  grad.addColorStop(0,'rgb('+r1+','+g1+','+b1+')');
+  grad.addColorStop(1,'rgb('+bg2[0]+','+bg2[1]+','+bg2[2]+')');
+  ctx.fillStyle=grad;
+  ctx.fillRect(0,0,W,H);
+
+  var ac=hexRgb(m.accent);
+  var glowGrad=ctx.createRadialGradient(W/2,H/2,0,W/2,H/2,Math.max(W,H)*0.5);
+  glowGrad.addColorStop(0,'rgba('+ac[0]+','+ac[1]+','+ac[2]+','+(0.015+breath*0.01)+')');
+  glowGrad.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=glowGrad;
+  ctx.fillRect(0,0,W,H);
+
+  ctx.fillStyle='rgba(0,0,0,0.35)';
+  var vig=ctx.createRadialGradient(W/2,H/2,Math.min(W,H)*0.3,W/2,H/2,Math.max(W,H)*0.7);
+  vig.addColorStop(0,'rgba(0,0,0,0)');
+  vig.addColorStop(1,'rgba(0,0,0,0.4)');
+  ctx.fillStyle=vig;
+  ctx.fillRect(0,0,W,H);
+}
+
+function drawCursorGlow(){
+  if(mx<0||my<0) return;
+  var m=MOODS[mood];
+  var c=hexRgb(m.accent);
+  var r=mdown?100:70;
+  var alpha=mdown?0.08:0.04;
+
+  ctx.save();
+  ctx.globalCompositeOperation='lighter';
+  var grad=ctx.createRadialGradient(mx,my,0,mx,my,r);
+  grad.addColorStop(0,'rgba('+c[0]+','+c[1]+','+c[2]+','+alpha+')');
+  grad.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=grad;
+  ctx.fillRect(mx-r,my-r,r*2,r*2);
+  ctx.restore();
+}
+
+// ═══ MOOD SYSTEM ═══
+var moodNameEl=document.getElementById('mood-name');
+var moodsEl=document.getElementById('moods');
+var moodDots=[];
+
+function buildMoodUI(){
+  moodsEl.innerHTML='';
+  moodDots=[];
+  MOODS.forEach(function(m,i){
+    var dot=document.createElement('div');
+    dot.className='m-dot'+(i===mood?' on':'');
+    dot.style.background=i===mood?m.accent:'transparent';
+    dot.style.borderColor=rgba(m.accent,0.3);
+    dot.addEventListener('click',function(e){
+      e.stopPropagation();
+      setMood(i);
+    });
+    moodsEl.appendChild(dot);
+    moodDots.push(dot);
+  });
+  updateMoodLabel();
+}
+
+function setMood(i){
+  if(i===mood) return;
+  mood=i;
+  var m=MOODS[mood];
+  moodDots.forEach(function(d,j){
+    d.className='m-dot'+(j===i?' on':'');
+    d.style.background=j===i?m.accent:'transparent';
+    d.style.borderColor=rgba(MOODS[j].accent,0.3);
+  });
+  updateMoodLabel();
+  initAudio();
+  var base=PENTATONIC[i*2%PENTATONIC.length];
+  playNote(base,1.5,0.6);
+  setTimeout(function(){ playNote(base*1.25,1.2,0.4); },100);
+  setTimeout(function(){ playNote(base*1.498,1.0,0.3); },200);
+}
+
+function updateMoodLabel(){
+  var m=MOODS[mood];
+  moodNameEl.textContent=m.name+' · '+m.en;
+  moodNameEl.style.color=rgba(m.accent,0.25);
+}
+
+// ═══ JOY COUNTER ═══
+var joysEl=document.getElementById('joys');
+
+function addJoy(n){
+  joys+=n||1;
+  joysEl.textContent='joys: '+joys;
+  joysEl.classList.add('flash');
+  setTimeout(function(){ joysEl.classList.remove('flash'); },500);
+
+  if(joys===10) celebrate();
+  else if(joys===50){ celebrate(); shower(); }
+  else if(joys===100){ celebrate(); shower(); showComfort(); }
+  else if(joys>100 && joys%100===0){ celebrate(); shower(); }
+}
+
+// ═══ EVENTS ═══
+var cursorEl=document.getElementById('cursor');
+var hintEl=document.getElementById('hint');
+var lastClick=0;
+
+function hideHint(){
+  if(!hintGone){ hintGone=true; hintEl.classList.add('gone'); }
+}
+
+function onMove(x,y){
+  pmx=mx; pmy=my;
+  mx=x; my=y;
+  mspeed=dist(mx,my,pmx,pmy);
+  cursorEl.style.left=x+'px';
+  cursorEl.style.top=y+'px';
+  hideHint();
+}
+
+function onDown(x,y){
+  initAudio();
+  mdown=true;
+  cursorEl.classList.add('pressing');
+  mx=x; my=y;
+
+  var now=Date.now();
+  if(now-lastClick<350){
+    bloom(x,y);
+    addJoy(5);
+    chime();
+    setTimeout(chime,150);
+  } else {
+    burst(x,y,15+Math.round(rand(0,10)),3,[1.5,3],[40,80],0.02);
+    addJoy(1);
+    chime();
+  }
+  lastClick=now;
+  hideHint();
+}
+
+function onUp(){
+  mdown=false;
+  cursorEl.classList.remove('pressing');
+}
+
+canvas=document.getElementById('c');
+ctx=canvas.getContext('2d');
+
+document.addEventListener('mousemove',function(e){ onMove(e.clientX,e.clientY); });
+document.addEventListener('mousedown',function(e){ if(e.target.classList&&e.target.classList.contains('m-dot'))return; onDown(e.clientX,e.clientY); });
+document.addEventListener('mouseup',onUp);
+
+document.addEventListener('touchstart',function(e){
+  var touch=e.touches[0];
+  if(e.target.classList&&e.target.classList.contains('m-dot'))return;
+  onDown(touch.clientX,touch.clientY);
+  e.preventDefault();
+},{passive:false});
+document.addEventListener('touchmove',function(e){
+  var touch=e.touches[0];
+  onMove(touch.clientX,touch.clientY);
+  e.preventDefault();
+},{passive:false});
+document.addEventListener('touchend',function(e){
+  onUp();
+  e.preventDefault();
+},{passive:false});
+
+var scrollCooldown=0;
+document.addEventListener('wheel',function(e){
+  if(Date.now()-scrollCooldown<400) return;
+  scrollCooldown=Date.now();
+  var dir=e.deltaY>0?1:-1;
+  setMood((mood+dir+MOODS.length)%MOODS.length);
+},{passive:true});
+
+document.addEventListener('keydown',function(e){
+  if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA') return;
+  var key=e.key;
+  if(key>='1'&&key<='4'){
+    setMood(parseInt(key)-1);
+    return;
+  }
+  initAudio();
+  var noteIdx=e.keyCode%PENTATONIC.length;
+  playNote(PENTATONIC[noteIdx],rand(1,2),rand(0.4,0.8));
+
+  var cx=W/2+rand(-100,100), cy=H/2+rand(-80,80);
+  burst(cx,cy,8,2,[1.5,3],[30,60],0.01);
+  hideHint();
+});
+
+// ═══ RESIZE ═══
+function resize(){
+  dpr=Math.min(window.devicePixelRatio||1, 2);
+  W=window.innerWidth;
+  H=window.innerHeight;
+  canvas.width=W*dpr;
+  canvas.height=H*dpr;
+  canvas.style.width=W+'px';
+  canvas.style.height=H+'px';
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+}
+window.addEventListener('resize',resize);
+
+// ═══ MAIN LOOP ═══
+function frame(){
+  t++;
+
+  if(mdown && mx>0 && my>0 && t%3===0){
+    var m=MOODS[mood];
+    spawn('sparkle',mx+rand(-6,6),my+rand(-6,6),rand(-1,1),rand(-1.5,-0.3),rand(1,2.5),pick(m.particles),rand(25,50),0.01,true);
+  }
+
+  comfortTimer++;
+  if(comfortTimer>700+Math.round(rand(0,300))){
+    comfortTimer=0;
+    showComfort();
+  }
+
+  updateTrail();
+  updateFireflies();
+  updateParticles();
+
+  drawBackground();
+  drawCursorGlow();
+  drawTrail();
+  drawFireflies();
+  drawParticles();
+
+  requestAnimationFrame(frame);
+}
+
+// ═══ INIT ═══
+resize();
+initFireflies();
+buildMoodUI();
+frame();
+
+console.log('%c✦ 小确幸 %cSmall Joys',
+  'font-size:1.4em;color:#FFD700','color:#aaa;');
+console.log('%c触碰，让美好发生。点击创造喜悦。滚轮切换心境。',
+  'color:#666;');
+
+})();
+</script>
+</body>
+</html>
