@@ -211,10 +211,10 @@
 
 <div id="frame-container">
   <iframe class="project-frame active" src="celestial-mechanics.html"></iframe>
-  <iframe class="project-frame" src="dimensional-ladder.html"></iframe>
-  <iframe class="project-frame" src="ocean-thermodynamics.html"></iframe>
-  <iframe class="project-frame" src="dreaming-machine.html"></iframe>
-  <iframe class="project-frame" src="latent-garden.html"></iframe>
+  <iframe class="project-frame"></iframe>
+  <iframe class="project-frame"></iframe>
+  <iframe class="project-frame"></iframe>
+  <iframe class="project-frame"></iframe>
 </div>
 
 <div id="fs-hint">按 Esc 退出全屏</div>
@@ -222,11 +222,11 @@
 <script>
 (function() {
   var projects = [
-    { name: '万象引力 · 星体模拟器', cat: 'sim' },
-    { name: '维度阶梯 · 高维投影', cat: 'sim' },
-    { name: '大洋之息 · 海洋生态模拟器', cat: 'sim' },
-    { name: 'The Dreaming Machine', cat: 'fantasy' },
-    { name: 'The Latent Garden', cat: 'fantasy' },
+    { name: '万象引力 · 星体模拟器', cat: 'sim', src: 'celestial-mechanics.html' },
+    { name: '维度阶梯 · 高维投影', cat: 'sim', src: 'dimensional-ladder.html' },
+    { name: '大洋之息 · 海洋生态模拟器', cat: 'sim', src: 'ocean-thermodynamics.html' },
+    { name: 'The Dreaming Machine', cat: 'fantasy', src: 'dreaming-machine.html' },
+    { name: 'The Latent Garden', cat: 'fantasy', src: 'latent-garden.html' },
   ];
 
   var currentIndex = 0;
@@ -241,6 +241,8 @@
   function switchTo(index) {
     if (index === currentIndex && frames[index].classList.contains('active')) return;
     frames[currentIndex].classList.remove('active');
+    frames[currentIndex].removeAttribute('src');
+    frames[index].src = projects[index].src;
     frames[index].classList.add('active');
     menuItems[currentIndex].classList.remove('active');
     menuItems[index].classList.add('active');
