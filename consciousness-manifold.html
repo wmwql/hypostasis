@@ -9,8 +9,8 @@ body{background:#06060e;overflow:hidden;cursor:none;font-family:'Courier New',mo
 canvas{display:block;position:fixed;top:0;left:0}
 #ui{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);color:rgba(255,255,255,0.2);font-size:11px;letter-spacing:2px;pointer-events:none;text-align:center;transition:opacity 1.5s}
 #phase{position:fixed;top:24px;left:50%;transform:translateX(-50%);color:rgba(255,255,255,0);font-size:13px;letter-spacing:6px;pointer-events:none;transition:all 2s}
-#cursor{position:fixed;pointer-events:none;z-index:999}
 .dim-label{position:fixed;right:24px;top:50%;transform:translateY(-50%);color:rgba(255,255,255,0.15);font-size:10px;letter-spacing:1px;writing-mode:vertical-rl;pointer-events:none}
+#fps{position:fixed;top:8px;left:8px;color:rgba(255,255,255,0.15);font:10px monospace;pointer-events:none}
 </style>
 </head>
 <body>
@@ -20,6 +20,7 @@ canvas{display:block;position:fixed;top:0;left:0}
 <div id="phase"></div>
 <div id="ui">移动 · 扭曲时空 &nbsp;│&nbsp; 点击 · 坍缩波函数 &nbsp;│&nbsp; 滚轮 · 穿越维度 &nbsp;│&nbsp; 静止 · 进入梦境</div>
 <div class="dim-label" id="dimLabel">维度 0</div>
+<div id="fps"></div>
 
 <script>
 'use strict';
@@ -32,43 +33,105 @@ const ctx = mainCanvas.getContext('2d');
 const fxCtx = fxCanvas.getContext('2d');
 const phaseEl = document.getElementById('phase');
 const dimLabelEl = document.getElementById('dimLabel');
+const fpsEl = document.getElementById('fps');
 
 let W, H, cx, cy;
 function resize() {
   W = window.innerWidth; H = window.innerHeight;
   cx = W / 2; cy = H / 2;
   [bgCanvas, mainCanvas, fxCanvas].forEach(c => { c.width = W; c.height = H; });
+  rebuildGrid();
 }
 resize();
 window.addEventListener('resize', resize);
 
-// --- Simplex-like noise ---
+// --- FPS tracking & adaptive quality ---
+const perf = { frames: [], fps: 60, quality: 1 };
+function updateFPS(now) {
+  perf.frames.push(now);
+  while (perf.frames.length > 0 && perf.frames[0] < now - 1000) perf.frames.shift();
+  perf.fps = perf.frames.length;
+  if (perf.fps < 25) perf.quality = Math.max(0.3, perf.quality - 0.05);
+  else if (perf.fps > 45 && perf.quality < 1) perf.quality = Math.min(1, perf.quality + 0.02);
+  fpsEl.textContent = `${perf.fps} fps`;
+}
+
+// --- Noise (simplified) ---
 const perm = new Uint8Array(512);
 const grad = [[1,1],[-1,1],[1,-1],[-1,-1],[1,0],[-1,0],[0,1],[0,-1]];
-(function initNoise() {
+{
   const p = new Uint8Array(256);
   for (let i = 0; i < 256; i++) p[i] = i;
   for (let i = 255; i > 0; i--) { const j = Math.random() * (i+1) | 0; [p[i],p[j]] = [p[j],p[i]]; }
   for (let i = 0; i < 512; i++) perm[i] = p[i & 255];
-})();
+}
 function noise2d(x, y) {
   const X = Math.floor(x) & 255, Y = Math.floor(y) & 255;
   const xf = x - Math.floor(x), yf = y - Math.floor(y);
   const u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf);
   const aa = perm[perm[X] + Y], ab = perm[perm[X] + Y + 1];
   const ba = perm[perm[X + 1] + Y], bb = perm[perm[X + 1] + Y + 1];
-  const dot = (g, x, y) => grad[g % 8][0] * x + grad[g % 8][1] * y;
-  const lerp = (a, b, t) => a + t * (b - a);
-  return lerp(
-    lerp(dot(aa, xf, yf), dot(ba, xf-1, yf), u),
-    lerp(dot(ab, xf, yf-1), dot(bb, xf-1, yf-1), u), v
-  );
+  const dot = (g, x, y) => grad[g & 7][0] * x + grad[g & 7][1] * y;
+  return (1-v) * ((1-u) * dot(aa,xf,yf) + u * dot(ba,xf-1,yf))
+       + v * ((1-u) * dot(ab,xf,yf-1) + u * dot(bb,xf-1,yf-1));
 }
-function fbm(x, y, octaves = 4) {
-  let val = 0, amp = 0.5, freq = 1;
-  for (let i = 0; i < octaves; i++) { val += amp * noise2d(x*freq, y*freq); amp *= 0.5; freq *= 2; }
-  return val;
+
+// --- Spatial grid for O(1) neighbor lookups ---
+const CELL = 160;
+let gridCols, gridRows, grid;
+function rebuildGrid() {
+  gridCols = Math.ceil(W / CELL) + 1;
+  gridRows = Math.ceil(H / CELL) + 1;
+  grid = new Array(gridCols * gridRows);
+  for (let i = 0; i < grid.length; i++) grid[i] = [];
 }
+rebuildGrid();
+
+function gridKey(x, y) {
+  const c = Math.max(0, Math.min(gridCols - 1, (x / CELL) | 0));
+  const r = Math.max(0, Math.min(gridRows - 1, (y / CELL) | 0));
+  return r * gridCols + c;
+}
+function updateGrid() {
+  for (let i = 0; i < grid.length; i++) grid[i].length = 0;
+  for (const th of thoughts) {
+    if (th.alive < 0.3) continue;
+    grid[gridKey(th.x, th.y)].push(th);
+  }
+}
+function* neighbors(th) {
+  const c = (th.x / CELL) | 0, r = (th.y / CELL) | 0;
+  for (let dr = -1; dr <= 1; dr++) {
+    for (let dc = -1; dc <= 1; dc++) {
+      const nr = r + dr, nc = c + dc;
+      if (nr < 0 || nr >= gridRows || nc < 0 || nc >= gridCols) continue;
+      const cell = grid[nr * gridCols + nc];
+      for (let i = 0; i < cell.length; i++) {
+        if (cell[i].id !== th.id) yield cell[i];
+      }
+    }
+  }
+}
+
+// --- Pre-render glow sprites ---
+const glowCache = new Map();
+function getGlow(size) {
+  const key = size | 0;
+  if (glowCache.has(key)) return glowCache.get(key);
+  const s = key * 2;
+  const c = document.createElement('canvas');
+  c.width = s; c.height = s;
+  const g = c.getContext('2d');
+  const grad = g.createRadialGradient(key, key, 0, key, key, key);
+  grad.addColorStop(0, 'rgba(255,255,255,1)');
+  grad.addColorStop(0.3, 'rgba(255,255,255,0.4)');
+  grad.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = grad;
+  g.fillRect(0, 0, s, s);
+  glowCache.set(key, c);
+  return c;
+}
+[6, 10, 16, 24, 36, 48].forEach(getGlow);
 
 // --- Concepts ---
 const concepts = [
@@ -86,7 +149,7 @@ const concepts = [
 // --- Thought particles ---
 const DIM = 8;
 const thoughts = [];
-const PARTICLE_COUNT = 180;
+const N = 150;
 
 class Thought {
   constructor(i) {
@@ -98,106 +161,91 @@ class Thought {
     this.y = cy + Math.sin(angle) * r;
     this.vx = (Math.random() - 0.5) * 0.3;
     this.vy = (Math.random() - 0.5) * 0.3;
-    this.embedding = Array.from({length: DIM}, () => Math.random() * 2 - 1);
+    this.embedding = new Float32Array(DIM);
+    for (let d = 0; d < DIM; d++) this.embedding[d] = Math.random() * 2 - 1;
     this.phase = Math.random() * Math.PI * 2;
     this.freq = 0.3 + Math.random() * 0.7;
     this.energy = 0.1 + Math.random() * 0.3;
     this.baseEnergy = this.energy;
     this.activated = 0;
     this.radius = 3 + Math.random() * 4;
-    this.trail = [];
-    this.trailMax = 20 + Math.random() * 20 | 0;
+    this.trailX = new Float32Array(24);
+    this.trailY = new Float32Array(24);
+    this.trailLen = 0;
+    this.trailPtr = 0;
     this.collapsed = false;
     this.collapseTimer = 0;
-    this.birthTime = performance.now() + Math.random() * 3000;
+    this.birthTime = performance.now() + Math.random() * 2000;
     this.alive = 0;
-  }
-
-  similarity(other) {
-    let dot = 0, a = 0, b = 0;
-    for (let d = 0; d < DIM; d++) {
-      dot += this.embedding[d] * other.embedding[d];
-      a += this.embedding[d] ** 2;
-      b += other.embedding[d] ** 2;
-    }
-    return dot / (Math.sqrt(a) * Math.sqrt(b) + 1e-8);
-  }
-
-  cursorSimilarity() {
-    let dot = 0, a = 0, b = 0;
-    for (let d = 0; d < DIM; d++) {
-      dot += this.embedding[d] * state.cursorEmbedding[d];
-      a += this.embedding[d] ** 2;
-      b += state.cursorEmbedding[d] ** 2;
-    }
-    return dot / (Math.sqrt(a) * Math.sqrt(b) + 1e-8);
+    this.hue = 0;
   }
 }
 
+for (let i = 0; i < N; i++) thoughts.push(new Thought(i));
+
+// --- Pre-compute similarity between all pairs ---
+const simMatrix = new Float32Array(N * N);
+function precomputeSimilarity() {
+  for (let i = 0; i < N; i++) {
+    const ei = thoughts[i].embedding;
+    let ai = 0;
+    for (let d = 0; d < DIM; d++) ai += ei[d] * ei[d];
+    ai = Math.sqrt(ai);
+    for (let j = i + 1; j < N; j++) {
+      const ej = thoughts[j].embedding;
+      let dot = 0, bj = 0;
+      for (let d = 0; d < DIM; d++) { dot += ei[d] * ej[d]; bj += ej[d] * ej[d]; }
+      const sim = dot / (ai * Math.sqrt(bj) + 1e-8);
+      simMatrix[i * N + j] = sim;
+      simMatrix[j * N + i] = sim;
+    }
+  }
+}
+precomputeSimilarity();
+
 // --- State ---
 const state = {
-  mouse: { x: cx, y: cy, px: cx, py: cy, vx: 0, vy: 0, active: false, down: false },
-  time: 0,
-  dt: 0,
-  dimAngle: 0,
-  dimTarget: 0,
-  projDims: [0, 1],
-  cursorEmbedding: Array.from({length: DIM}, () => 0),
-  idleTime: 0,
-  dreaming: false,
-  dreamIntensity: 0,
+  mouse: { x: cx, y: cy, px: cx, py: cy, vx: 0, vy: 0, active: false },
+  time: 0, dt: 0,
+  dimAngle: 0, dimTarget: 0, projDims: [0, 1],
+  cursorEmbedding: new Float32Array(DIM),
+  idleTime: 0, dreaming: false, dreamIntensity: 0,
   ripples: [],
-  phase: 'genesis',
-  phaseTime: 0,
-  genesisProgress: 0,
   collapseWave: null,
-  energy: 0,
-  resonance: 0,
-  audioReady: false,
+  energy: 0, resonance: 0, audioReady: false,
 };
 
-// --- Init particles ---
-for (let i = 0; i < PARTICLE_COUNT; i++) thoughts.push(new Thought(i));
-
 // --- Audio ---
-let audioCtx, masterGain, reverbNode, oscillators = [];
+let audioCtx, masterGain, oscillators = [];
 function initAudio() {
   if (state.audioReady) return;
   try {
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     masterGain = audioCtx.createGain();
     masterGain.gain.value = 0;
-
     const convolver = audioCtx.createConvolver();
-    const len = audioCtx.sampleRate * 3;
+    const len = audioCtx.sampleRate * 2;
     const impulse = audioCtx.createBuffer(2, len, audioCtx.sampleRate);
     for (let ch = 0; ch < 2; ch++) {
       const d = impulse.getChannelData(ch);
       for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i/len, 2.5);
     }
     convolver.buffer = impulse;
-    reverbNode = convolver;
-
-    const dryGain = audioCtx.createGain();
-    dryGain.gain.value = 0.3;
-    const wetGain = audioCtx.createGain();
-    wetGain.gain.value = 0.7;
-
-    masterGain.connect(dryGain).connect(audioCtx.destination);
-    masterGain.connect(convolver).connect(wetGain).connect(audioCtx.destination);
-
-    const baseFreqs = [55, 82.5, 110, 137.5, 165, 220, 275, 330];
+    const dry = audioCtx.createGain(); dry.gain.value = 0.3;
+    const wet = audioCtx.createGain(); wet.gain.value = 0.7;
+    masterGain.connect(dry).connect(audioCtx.destination);
+    masterGain.connect(convolver).connect(wet).connect(audioCtx.destination);
+    const freqs = [55, 82.5, 110, 165, 220, 330];
     for (let i = 0; i < 6; i++) {
       const osc = audioCtx.createOscillator();
       const gain = audioCtx.createGain();
       osc.type = i < 3 ? 'sine' : 'triangle';
-      osc.frequency.value = baseFreqs[i % baseFreqs.length];
+      osc.frequency.value = freqs[i];
       gain.gain.value = 0;
       osc.connect(gain).connect(masterGain);
       osc.start();
-      oscillators.push({ osc, gain, baseFreq: baseFreqs[i % baseFreqs.length] });
+      oscillators.push({ osc, gain, baseFreq: freqs[i] });
     }
-
     masterGain.gain.setTargetAtTime(0.12, audioCtx.currentTime, 2);
     state.audioReady = true;
   } catch(e) {}
@@ -206,23 +254,18 @@ function initAudio() {
 function updateAudio() {
   if (!state.audioReady) return;
   const t = audioCtx.currentTime;
-
-  let maxActivation = 0;
-  const activatedThoughts = thoughts.filter(th => th.activated > 0.3);
-  activatedThoughts.forEach(th => { if (th.activated > maxActivation) maxActivation = th.activated; });
-
-  oscillators.forEach((o, i) => {
-    const freqMod = 1 + state.resonance * 0.5 * Math.sin(state.time * 0.001 * (i + 1));
-    const dreamMod = state.dreaming ? (1 + 0.3 * Math.sin(state.time * 0.0003 * (i + 1))) : 1;
-    o.osc.frequency.setTargetAtTime(o.baseFreq * freqMod * dreamMod, t, 0.1);
-
+  const active = [];
+  for (const th of thoughts) if (th.activated > 0.3) active.push(th);
+  for (let i = 0; i < oscillators.length; i++) {
+    const o = oscillators[i];
+    const fm = 1 + state.resonance * 0.5 * Math.sin(state.time * 0.001 * (i + 1));
+    const dm = state.dreaming ? (1 + 0.3 * Math.sin(state.time * 0.0003 * (i + 1))) : 1;
+    o.osc.frequency.setTargetAtTime(o.baseFreq * fm * dm, t, 0.1);
     let vol = 0.02;
-    if (activatedThoughts.length > 0 && i < activatedThoughts.length) {
-      vol += activatedThoughts[i].activated * 0.06;
-    }
+    if (i < active.length) vol += active[i].activated * 0.06;
     if (state.dreaming) vol += state.dreamIntensity * 0.04;
     o.gain.gain.setTargetAtTime(Math.min(vol, 0.15), t, 0.15);
-  });
+  }
 }
 
 // --- Physics ---
@@ -230,134 +273,128 @@ function projectEmbedding(emb) {
   const a = state.dimAngle;
   const d1a = state.projDims[0], d1b = (state.projDims[0] + 2) % DIM;
   const d2a = state.projDims[1], d2b = (state.projDims[1] + 3) % DIM;
-  const px = emb[d1a] * Math.cos(a) + emb[d1b] * Math.sin(a);
-  const py = emb[d2a] * Math.cos(a * 0.7) + emb[d2b] * Math.sin(a * 0.7);
-  return { px, py };
+  return {
+    px: emb[d1a] * Math.cos(a) + emb[d1b] * Math.sin(a),
+    py: emb[d2a] * Math.cos(a * 0.7) + emb[d2b] * Math.sin(a * 0.7)
+  };
+}
+
+function cursorSim(th) {
+  const e = th.embedding, c = state.cursorEmbedding;
+  let dot = 0, a = 0, b = 0;
+  for (let d = 0; d < DIM; d++) { dot += e[d]*c[d]; a += e[d]*e[d]; b += c[d]*c[d]; }
+  return dot / (Math.sqrt(a * b) + 1e-8);
 }
 
 function updatePhysics() {
   const { mouse, time } = state;
   const dt = Math.min(state.dt, 33);
-
   state.dimAngle += (state.dimTarget - state.dimAngle) * 0.03;
 
-  let totalEnergy = 0;
-  let resonanceSum = 0;
-  let resonanceCount = 0;
+  let totalEnergy = 0, resSum = 0, resCount = 0;
 
   for (const th of thoughts) {
     if (time < th.birthTime) { th.alive = 0; continue; }
     th.alive = Math.min(1, th.alive + dt * 0.001);
-
     th.phase += th.freq * dt * 0.001;
-    const { px, py } = projectEmbedding(th.embedding);
-    const embForceX = (px * 80 + cx - th.x) * 0.0004;
-    const embForceY = (py * 80 + cy - th.y) * 0.0004;
-    th.vx += embForceX;
-    th.vy += embForceY;
+    th.hue = (th.phase * 30 + th.id * 137.508) % 360;
 
-    const noiseScale = 0.001;
-    const nv = fbm(th.x * noiseScale + time * 0.00005, th.y * noiseScale, 2);
+    const { px, py } = projectEmbedding(th.embedding);
+    th.vx += (px * 80 + cx - th.x) * 0.0004;
+    th.vy += (py * 80 + cy - th.y) * 0.0004;
+
+    const nv = noise2d(th.x * 0.001 + time * 0.00005, th.y * 0.001);
     const na = nv * Math.PI * 4;
-    const noiseForce = state.dreaming ? 0.015 : 0.005;
-    th.vx += Math.cos(na) * noiseForce;
-    th.vy += Math.sin(na) * noiseForce;
+    const nf = state.dreaming ? 0.015 : 0.005;
+    th.vx += Math.cos(na) * nf;
+    th.vy += Math.sin(na) * nf;
 
     if (mouse.active && th.alive > 0.5) {
       const dx = th.x - mouse.x, dy = th.y - mouse.y;
       const dist = Math.sqrt(dx * dx + dy * dy) + 1;
-      const sim = th.cursorSimilarity();
-      const force = sim > 0.3
-        ? -0.8 * (sim - 0.3) / (dist * 0.05 + 1)
-        : 0.3 * (0.3 - sim) / (dist * 0.1 + 1);
-      const maxForce = 2;
-      const f = Math.max(-maxForce, Math.min(maxForce, force / dist * 50));
-      th.vx += dx / dist * f * 0.02;
-      th.vy += dy / dist * f * 0.02;
-
-      if (dist < 200) {
-        th.activated += (1 - th.activated) * 0.02 * (1 - dist/200) * (sim > 0 ? sim * 2 : 0.1);
-        th.energy += 0.001 * (1 - dist/200);
+      if (dist < 250) {
+        const sim = cursorSim(th);
+        const force = sim > 0.3
+          ? -0.8 * (sim - 0.3) / (dist * 0.05 + 1)
+          : 0.3 * (0.3 - sim) / (dist * 0.1 + 1);
+        const f = Math.max(-2, Math.min(2, force / dist * 50));
+        th.vx += dx / dist * f * 0.02;
+        th.vy += dy / dist * f * 0.02;
+        th.activated += (1 - th.activated) * 0.02 * (1 - dist/250) * (sim > 0 ? sim * 2 : 0.1);
+        th.energy += 0.001 * (1 - dist/250);
       }
     }
 
     th.activated *= 0.995;
     th.energy += (th.baseEnergy - th.energy) * 0.002;
+    if (th.collapsed) { th.collapseTimer -= dt; if (th.collapseTimer <= 0) th.collapsed = false; }
 
-    if (th.collapsed) {
-      th.collapseTimer -= dt;
-      if (th.collapseTimer <= 0) th.collapsed = false;
-    }
-
-    th.vx *= 0.985;
-    th.vy *= 0.985;
+    th.vx *= 0.985; th.vy *= 0.985;
     th.x += th.vx * dt * 0.06;
     th.y += th.vy * dt * 0.06;
 
-    const margin = 60;
-    if (th.x < margin) th.vx += 0.1;
-    if (th.x > W - margin) th.vx -= 0.1;
-    if (th.y < margin) th.vy += 0.1;
-    if (th.y > H - margin) th.vy -= 0.1;
+    if (th.x < 60) th.vx += 0.1; if (th.x > W - 60) th.vx -= 0.1;
+    if (th.y < 60) th.vy += 0.1; if (th.y > H - 60) th.vy -= 0.1;
 
-    th.trail.unshift({ x: th.x, y: th.y, e: th.energy, a: th.activated });
-    if (th.trail.length > th.trailMax) th.trail.pop();
+    const tp = th.trailPtr;
+    th.trailX[tp] = th.x; th.trailY[tp] = th.y;
+    th.trailPtr = (tp + 1) % 24;
+    if (th.trailLen < 24) th.trailLen++;
 
     totalEnergy += th.energy;
   }
 
-  for (let i = 0; i < thoughts.length; i++) {
-    if (thoughts[i].alive < 0.5) continue;
-    for (let j = i + 1; j < thoughts.length; j++) {
-      if (thoughts[j].alive < 0.5) continue;
-      const dx = thoughts[j].x - thoughts[i].x;
-      const dy = thoughts[j].y - thoughts[i].y;
-      const distSq = dx*dx + dy*dy;
-      if (distSq > 200*200) continue;
+  // Particle interactions via spatial grid
+  updateGrid();
+  for (const th of thoughts) {
+    if (th.alive < 0.5) continue;
+    for (const other of neighbors(th)) {
+      if (other.id <= th.id) continue;
+      const dx = other.x - th.x, dy = other.y - th.y;
+      const distSq = dx * dx + dy * dy;
+      if (distSq > 160 * 160) continue;
       const dist = Math.sqrt(distSq) + 1;
-      const sim = thoughts[i].similarity(thoughts[j]);
+
+      const sim = simMatrix[th.id * N + other.id];
       if (sim > 0.2) {
-        const phaseDiff = Math.abs(Math.sin(thoughts[i].phase) - Math.sin(thoughts[j].phase));
-        if (phaseDiff < 0.5) { resonanceSum += sim; resonanceCount++; }
+        const pd = Math.abs(Math.sin(th.phase) - Math.sin(other.phase));
+        if (pd < 0.5) { resSum += sim; resCount++; }
         const coupling = 0.001 * sim;
-        thoughts[i].phase += coupling * Math.sin(thoughts[j].phase - thoughts[i].phase);
-        thoughts[j].phase += coupling * Math.sin(thoughts[i].phase - thoughts[j].phase);
-        const energyFlow = (thoughts[j].energy - thoughts[i].energy) * 0.01 * sim;
-        thoughts[i].energy += energyFlow;
-        thoughts[j].energy -= energyFlow;
+        th.phase += coupling * Math.sin(other.phase - th.phase);
+        other.phase += coupling * Math.sin(th.phase - other.phase);
+        const ef = (other.energy - th.energy) * 0.01 * sim;
+        th.energy += ef; other.energy -= ef;
       }
       if (dist < 30) {
-        const repel = 0.5 / (dist * dist);
-        thoughts[i].vx -= dx / dist * repel;
-        thoughts[i].vy -= dy / dist * repel;
-        thoughts[j].vx += dx / dist * repel;
-        thoughts[j].vy += dy / dist * repel;
+        const repel = 0.5 / (distSq + 1);
+        th.vx -= dx * repel; th.vy -= dy * repel;
+        other.vx += dx * repel; other.vy += dy * repel;
       }
     }
   }
 
   state.energy = totalEnergy;
-  state.resonance += ((resonanceCount > 0 ? resonanceSum / resonanceCount : 0) - state.resonance) * 0.02;
+  state.resonance += ((resCount > 0 ? resSum / resCount : 0) - state.resonance) * 0.02;
 
+  // Ripples
   for (let i = state.ripples.length - 1; i >= 0; i--) {
-    state.ripples[i].r += dt * 0.3;
-    state.ripples[i].life -= dt * 0.001;
-    if (state.ripples[i].life <= 0) state.ripples.splice(i, 1);
+    const r = state.ripples[i];
+    r.r += dt * 0.3; r.life -= dt * 0.001;
+    if (r.life <= 0) state.ripples.splice(i, 1);
   }
-
   if (state.collapseWave) {
     state.collapseWave.r += dt * 0.5;
     state.collapseWave.life -= dt * 0.0008;
     if (state.collapseWave.life <= 0) state.collapseWave = null;
   }
 
+  // Dream
   if (!mouse.active || (Math.abs(mouse.vx) < 0.5 && Math.abs(mouse.vy) < 0.5)) {
     state.idleTime += dt;
   } else {
     state.idleTime = 0;
   }
-  const dreamThreshold = 5000;
-  if (state.idleTime > dreamThreshold && !state.dreaming) {
+  if (state.idleTime > 5000 && !state.dreaming) {
     state.dreaming = true;
     phaseEl.textContent = '梦 境';
     phaseEl.style.color = 'rgba(150,120,255,0.4)';
@@ -365,10 +402,9 @@ function updatePhysics() {
   if (state.dreaming) {
     state.dreamIntensity = Math.min(1, state.dreamIntensity + dt * 0.0002);
     for (const th of thoughts) {
-      const dreamAngle = time * 0.0002 + th.id * 0.1;
-      const dreamR = 0.3 * state.dreamIntensity;
-      th.vx += Math.cos(dreamAngle) * dreamR * 0.01;
-      th.vy += Math.sin(dreamAngle) * dreamR * 0.01;
+      const da = time * 0.0002 + th.id * 0.1;
+      th.vx += Math.cos(da) * state.dreamIntensity * 0.003;
+      th.vy += Math.sin(da) * state.dreamIntensity * 0.003;
       th.energy += 0.0005 * state.dreamIntensity;
     }
   }
@@ -380,142 +416,133 @@ function updatePhysics() {
 }
 
 // --- Rendering ---
-function hslToStr(h, s, l, a = 1) {
-  return `hsla(${h},${s}%,${l}%,${a})`;
-}
-
-function thoughtColor(th) {
-  const hue = (th.phase * 30 + th.id * 137.508) % 360;
-  const sat = 60 + th.activated * 30 + th.energy * 20;
-  const lit = 40 + th.activated * 30 + th.energy * 15;
-  return { hue, sat: Math.min(100, sat), lit: Math.min(85, lit) };
-}
+function hsl(h, s, l, a) { return `hsla(${h},${s}%,${l}%,${a})`; }
 
 function drawBackground() {
   const t = state.time * 0.0001;
   bgCtx.fillStyle = `rgba(6,6,14,${state.dreaming ? 0.03 : 0.06})`;
   bgCtx.fillRect(0, 0, W, H);
 
-  const gridSize = 80;
-  bgCtx.strokeStyle = `rgba(30,20,60,${0.15 + state.dreamIntensity * 0.1})`;
+  const step = 100;
+  bgCtx.strokeStyle = `rgba(30,20,60,${0.12 + state.dreamIntensity * 0.08})`;
   bgCtx.lineWidth = 0.5;
-
-  for (let x = 0; x < W; x += gridSize) {
+  for (let x = 0; x < W; x += step) {
     bgCtx.beginPath();
-    for (let y = 0; y <= H; y += 10) {
-      const warp = fbm(x * 0.003 + t, y * 0.003 + t * 0.7, 2) * 15 * (1 + state.dreamIntensity);
-      if (y === 0) bgCtx.moveTo(x + warp, y);
-      else bgCtx.lineTo(x + warp, y);
+    for (let y = 0; y <= H; y += 20) {
+      const warp = noise2d(x * 0.003 + t, y * 0.003 + t * 0.7) * 12;
+      y === 0 ? bgCtx.moveTo(x + warp, y) : bgCtx.lineTo(x + warp, y);
     }
     bgCtx.stroke();
   }
-  for (let y = 0; y < H; y += gridSize) {
+  for (let y = 0; y < H; y += step) {
     bgCtx.beginPath();
-    for (let x = 0; x <= W; x += 10) {
-      const warp = fbm(x * 0.003 + t * 0.5, y * 0.003 + t, 2) * 15 * (1 + state.dreamIntensity);
-      if (x === 0) bgCtx.moveTo(x, y + warp);
-      else bgCtx.lineTo(x, y + warp);
+    for (let x = 0; x <= W; x += 20) {
+      const warp = noise2d(x * 0.003 + t * 0.5, y * 0.003 + t) * 12;
+      x === 0 ? bgCtx.moveTo(x, y + warp) : bgCtx.lineTo(x, y + warp);
     }
     bgCtx.stroke();
   }
 }
 
 function drawConnections() {
-  for (let i = 0; i < thoughts.length; i++) {
-    const a = thoughts[i];
-    if (a.alive < 0.5) continue;
-    for (let j = i + 1; j < thoughts.length; j++) {
-      const b = thoughts[j];
-      if (b.alive < 0.5) continue;
-      const dx = b.x - a.x, dy = b.y - a.y;
-      const dist = Math.sqrt(dx*dx + dy*dy);
+  let drawn = 0;
+  const maxDraw = 120 * perf.quality | 0;
+  for (const th of thoughts) {
+    if (th.alive < 0.5) continue;
+    for (const other of neighbors(th)) {
+      if (other.id <= th.id) continue;
+      if (drawn >= maxDraw) return;
+      const dx = other.x - th.x, dy = other.y - th.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
       if (dist > 150) continue;
-      const sim = a.similarity(b);
+      const sim = simMatrix[th.id * N + other.id];
       if (sim < 0.2) continue;
 
-      const alpha = (sim - 0.2) * 1.5 * (1 - dist/150) * Math.min(a.alive, b.alive);
-      if (alpha < 0.01) continue;
-
-      const colA = thoughtColor(a), colB = thoughtColor(b);
-      const wave = Math.sin(state.time * 0.002 + a.phase + b.phase) * 0.5 + 0.5;
+      const alpha = (sim - 0.2) * 1.2 * (1 - dist / 150) * Math.min(th.alive, other.alive);
+      if (alpha < 0.02) continue;
 
       ctx.beginPath();
-      const cpx = (a.x + b.x) / 2 + dy * 0.1 * Math.sin(state.time * 0.001 + i);
-      const cpy = (a.y + b.y) / 2 - dx * 0.1 * Math.sin(state.time * 0.001 + j);
-      ctx.moveTo(a.x, a.y);
-      ctx.quadraticCurveTo(cpx, cpy, b.x, b.y);
-
-      const grad = ctx.createLinearGradient(a.x, a.y, b.x, b.y);
-      grad.addColorStop(0, hslToStr(colA.hue, colA.sat, colA.lit, alpha * 0.6));
-      grad.addColorStop(wave, hslToStr((colA.hue + colB.hue) / 2, 80, 70, alpha * 0.9));
-      grad.addColorStop(1, hslToStr(colB.hue, colB.sat, colB.lit, alpha * 0.6));
-      ctx.strokeStyle = grad;
-      ctx.lineWidth = 0.5 + sim * 1.5 + (a.activated + b.activated) * 0.5;
+      ctx.moveTo(th.x, th.y);
+      ctx.lineTo(other.x, other.y);
+      const mh = ((th.hue + other.hue) * 0.5) | 0;
+      ctx.strokeStyle = hsl(mh, 60, 55, alpha * 0.6);
+      ctx.lineWidth = 0.5 + sim;
       ctx.stroke();
+      drawn++;
     }
   }
 }
 
 function drawTrails() {
+  if (perf.quality < 0.5) return;
   for (const th of thoughts) {
-    if (th.alive < 0.5 || th.trail.length < 2) continue;
-    const col = thoughtColor(th);
+    if (th.alive < 0.5 || th.trailLen < 3) continue;
     ctx.beginPath();
-    ctx.moveTo(th.trail[0].x, th.trail[0].y);
-    for (let i = 1; i < th.trail.length; i++) {
-      ctx.lineTo(th.trail[i].x, th.trail[i].y);
+    let ptr = (th.trailPtr - 1 + 24) % 24;
+    ctx.moveTo(th.trailX[ptr], th.trailY[ptr]);
+    const len = Math.min(th.trailLen, 24);
+    for (let i = 1; i < len; i++) {
+      ptr = (ptr - 1 + 24) % 24;
+      ctx.lineTo(th.trailX[ptr], th.trailY[ptr]);
     }
-    ctx.strokeStyle = hslToStr(col.hue, col.sat * 0.5, col.lit * 0.5, 0.08 * th.alive);
-    ctx.lineWidth = th.radius * 0.3;
+    ctx.strokeStyle = hsl(th.hue, 30, 30, 0.06 * th.alive);
+    ctx.lineWidth = th.radius * 0.25;
     ctx.stroke();
   }
 }
 
 function drawParticles() {
+  const lowQ = perf.quality < 0.6;
   for (const th of thoughts) {
     if (th.alive < 0.1) continue;
-    const col = thoughtColor(th);
+    const sat = Math.min(100, 60 + th.activated * 30 + th.energy * 20) | 0;
+    const lit = Math.min(85, 40 + th.activated * 30 + th.energy * 15) | 0;
     const r = th.radius * (1 + th.energy * 2 + th.activated * 3) * th.alive;
     const pulse = Math.sin(th.phase) * 0.2 + 1;
     const rr = r * pulse;
 
-    const superpositionSpread = th.collapsed ? 0 : (1 - th.activated) * 8;
-    if (superpositionSpread > 1) {
-      for (let s = 0; s < 3; s++) {
-        const sa = th.phase * 2 + s * Math.PI * 2 / 3;
-        const sx = th.x + Math.cos(sa) * superpositionSpread;
-        const sy = th.y + Math.sin(sa) * superpositionSpread;
-        const sg = ctx.createRadialGradient(sx, sy, 0, sx, sy, rr * 1.5);
-        sg.addColorStop(0, hslToStr(col.hue + s * 40, col.sat, col.lit, 0.15 * th.alive));
-        sg.addColorStop(1, hslToStr(col.hue + s * 40, col.sat, col.lit, 0));
-        ctx.fillStyle = sg;
-        ctx.beginPath();
-        ctx.arc(sx, sy, rr * 1.5, 0, Math.PI * 2);
-        ctx.fill();
+    // Superposition ghosts (skip in low quality)
+    if (!lowQ && !th.collapsed) {
+      const spread = (1 - th.activated) * 6;
+      if (spread > 1) {
+        for (let s = 0; s < 3; s++) {
+          const sa = th.phase * 2 + s * 2.094;
+          ctx.globalAlpha = 0.1 * th.alive;
+          const glowSize = Math.max(6, (rr * 1.5) | 0);
+          const sprite = getGlow(glowSize);
+          ctx.drawImage(sprite,
+            th.x + Math.cos(sa) * spread - glowSize,
+            th.y + Math.sin(sa) * spread - glowSize);
+        }
+        ctx.globalAlpha = 1;
       }
     }
 
-    const outerGlow = ctx.createRadialGradient(th.x, th.y, 0, th.x, th.y, rr * 3);
-    outerGlow.addColorStop(0, hslToStr(col.hue, col.sat, col.lit, 0.3 * th.alive));
-    outerGlow.addColorStop(0.3, hslToStr(col.hue, col.sat, col.lit, 0.1 * th.alive));
-    outerGlow.addColorStop(1, hslToStr(col.hue, col.sat, col.lit, 0));
-    ctx.fillStyle = outerGlow;
+    // Core glow via sprite
+    const coreSize = Math.max(6, (rr * 2.5) | 0);
+    const sprite = getGlow(coreSize);
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = (0.4 + th.activated * 0.4) * th.alive;
+    // Tint by drawing colored rect clipped to sprite
+    ctx.fillStyle = hsl(th.hue, sat, lit, 1);
     ctx.beginPath();
-    ctx.arc(th.x, th.y, rr * 3, 0, Math.PI * 2);
+    ctx.arc(th.x, th.y, coreSize * 0.9, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 0.7 * th.alive;
+    ctx.drawImage(sprite, th.x - coreSize, th.y - coreSize);
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
+
+    // Bright center dot
+    ctx.fillStyle = hsl(th.hue, sat, Math.min(95, lit + 30), 0.8 * th.alive);
+    ctx.beginPath();
+    ctx.arc(th.x, th.y, Math.max(1.5, rr * 0.4), 0, Math.PI * 2);
     ctx.fill();
 
-    const core = ctx.createRadialGradient(th.x, th.y, 0, th.x, th.y, rr);
-    core.addColorStop(0, hslToStr(col.hue, col.sat, Math.min(95, col.lit + 30), 0.9 * th.alive));
-    core.addColorStop(0.6, hslToStr(col.hue, col.sat, col.lit, 0.6 * th.alive));
-    core.addColorStop(1, hslToStr(col.hue, col.sat, col.lit, 0));
-    ctx.fillStyle = core;
-    ctx.beginPath();
-    ctx.arc(th.x, th.y, rr, 0, Math.PI * 2);
-    ctx.fill();
-
+    // Label
     if (th.activated > 0.3) {
-      ctx.fillStyle = hslToStr(col.hue, col.sat, col.lit, th.activated * 0.6 * th.alive);
-      ctx.font = `${9 + th.activated * 4}px monospace`;
+      ctx.fillStyle = hsl(th.hue, sat, lit, th.activated * 0.6 * th.alive);
+      ctx.font = `${9 + th.activated * 3 | 0}px monospace`;
       ctx.textAlign = 'center';
       ctx.fillText(th.concept, th.x, th.y - rr * 2 - 5);
     }
@@ -525,239 +552,170 @@ function drawParticles() {
 function drawCursorField() {
   const { mouse } = state;
   if (!mouse.active) return;
-
   const speed = Math.sqrt(mouse.vx * mouse.vx + mouse.vy * mouse.vy);
-  const fieldRadius = 80 + speed * 5;
+  const fr = 80 + speed * 4;
 
-  for (let ring = 0; ring < 4; ring++) {
-    const r = fieldRadius * (0.3 + ring * 0.25);
+  for (let ring = 0; ring < 3; ring++) {
+    const r = fr * (0.3 + ring * 0.3);
     const rot = state.time * 0.001 * (ring % 2 === 0 ? 1 : -1);
-    const alpha = 0.08 - ring * 0.015;
-
     fxCtx.beginPath();
-    const segments = 60;
-    for (let i = 0; i <= segments; i++) {
-      const a = (i / segments) * Math.PI * 2 + rot;
-      const wobble = Math.sin(a * 3 + state.time * 0.003) * 5 * (1 + state.dreamIntensity);
-      const rr = r + wobble;
-      const px = mouse.x + Math.cos(a) * rr;
-      const py = mouse.y + Math.sin(a) * rr;
-      if (i === 0) fxCtx.moveTo(px, py); else fxCtx.lineTo(px, py);
+    for (let i = 0; i <= 40; i++) {
+      const a = (i / 40) * Math.PI * 2 + rot;
+      const wobble = Math.sin(a * 3 + state.time * 0.003) * 4;
+      const px = mouse.x + Math.cos(a) * (r + wobble);
+      const py = mouse.y + Math.sin(a) * (r + wobble);
+      i === 0 ? fxCtx.moveTo(px, py) : fxCtx.lineTo(px, py);
     }
-    const hue = (state.time * 0.02 + ring * 60) % 360;
-    fxCtx.strokeStyle = hslToStr(hue, 60, 60, alpha);
+    fxCtx.strokeStyle = hsl((state.time * 0.02 + ring * 60) % 360, 60, 60, 0.06);
     fxCtx.lineWidth = 1;
     fxCtx.stroke();
   }
 
-  const coreGlow = fxCtx.createRadialGradient(mouse.x, mouse.y, 0, mouse.x, mouse.y, 15);
-  coreGlow.addColorStop(0, 'rgba(200,180,255,0.5)');
-  coreGlow.addColorStop(1, 'rgba(200,180,255,0)');
-  fxCtx.fillStyle = coreGlow;
+  // Core dot
+  const cg = fxCtx.createRadialGradient(mouse.x, mouse.y, 0, mouse.x, mouse.y, 12);
+  cg.addColorStop(0, 'rgba(200,180,255,0.5)');
+  cg.addColorStop(1, 'rgba(200,180,255,0)');
+  fxCtx.fillStyle = cg;
   fxCtx.beginPath();
-  fxCtx.arc(mouse.x, mouse.y, 15, 0, Math.PI * 2);
+  fxCtx.arc(mouse.x, mouse.y, 12, 0, Math.PI * 2);
   fxCtx.fill();
-
-  if (speed > 2) {
-    const trailLen = Math.min(40, speed * 3);
-    const angle = Math.atan2(-mouse.vy, -mouse.vx);
-    const trailGrad = fxCtx.createLinearGradient(
-      mouse.x, mouse.y,
-      mouse.x + Math.cos(angle) * trailLen,
-      mouse.y + Math.sin(angle) * trailLen
-    );
-    trailGrad.addColorStop(0, 'rgba(180,150,255,0.3)');
-    trailGrad.addColorStop(1, 'rgba(180,150,255,0)');
-    fxCtx.strokeStyle = trailGrad;
-    fxCtx.lineWidth = 3;
-    fxCtx.beginPath();
-    fxCtx.moveTo(mouse.x, mouse.y);
-    fxCtx.lineTo(mouse.x + Math.cos(angle) * trailLen, mouse.y + Math.sin(angle) * trailLen);
-    fxCtx.stroke();
-  }
 }
 
 function drawRipples() {
   for (const rip of state.ripples) {
-    const alpha = rip.life * 0.3;
+    if (rip.r < 1) continue;
     fxCtx.beginPath();
     fxCtx.arc(rip.x, rip.y, rip.r, 0, Math.PI * 2);
-    fxCtx.strokeStyle = hslToStr(rip.hue, 70, 60, alpha);
+    fxCtx.strokeStyle = hsl(rip.hue, 70, 60, rip.life * 0.3);
     fxCtx.lineWidth = 2 * rip.life;
     fxCtx.stroke();
   }
-
   if (state.collapseWave) {
     const cw = state.collapseWave;
-    const alpha = cw.life * 0.4;
-
     for (let i = 0; i < 3; i++) {
+      const r = cw.r - i * 8;
+      if (r < 1) continue;
       fxCtx.beginPath();
-      fxCtx.arc(cw.x, cw.y, cw.r - i * 8, 0, Math.PI * 2);
-      fxCtx.strokeStyle = hslToStr(cw.hue, 80, 70, alpha * (1 - i * 0.3));
+      fxCtx.arc(cw.x, cw.y, r, 0, Math.PI * 2);
+      fxCtx.strokeStyle = hsl(cw.hue, 80, 70, cw.life * 0.4 * (1 - i * 0.3));
       fxCtx.lineWidth = 3 - i;
       fxCtx.stroke();
     }
   }
 }
 
-function drawDimensionIndicator() {
-  if (state.dimAngle === 0) return;
-  const a = state.dimAngle;
-  const indicatorR = 30;
-  const ix = W - 50, iy = 50;
-
+function drawDimIndicator() {
+  if (Math.abs(state.dimAngle) < 0.01) return;
+  const a = state.dimAngle, ir = 25;
   fxCtx.save();
-  fxCtx.translate(ix, iy);
-
+  fxCtx.translate(W - 45, 45);
   for (let d = 0; d < DIM; d++) {
-    const angle = (d / DIM) * Math.PI * 2;
-    const brightness = d === state.projDims[0] || d === state.projDims[1] ? 0.5 : 0.15;
+    const rot = d / DIM * Math.PI * 2 + a * 0.5;
+    const bright = (d === state.projDims[0] || d === state.projDims[1]) ? 0.5 : 0.15;
     fxCtx.beginPath();
     fxCtx.moveTo(0, 0);
-    const rot = angle + a * 0.5;
-    fxCtx.lineTo(Math.cos(rot) * indicatorR, Math.sin(rot) * indicatorR);
-    fxCtx.strokeStyle = `rgba(150,130,255,${brightness})`;
+    fxCtx.lineTo(Math.cos(rot) * ir, Math.sin(rot) * ir);
+    fxCtx.strokeStyle = `rgba(150,130,255,${bright})`;
     fxCtx.lineWidth = 1;
     fxCtx.stroke();
-
-    fxCtx.beginPath();
-    fxCtx.arc(Math.cos(rot) * indicatorR, Math.sin(rot) * indicatorR, 2, 0, Math.PI * 2);
-    fxCtx.fillStyle = `rgba(150,130,255,${brightness})`;
-    fxCtx.fill();
   }
-
   fxCtx.restore();
 }
 
-function drawResonanceMeter() {
+function drawResonance() {
   if (state.resonance < 0.05) return;
-  const barW = 100, barH = 3;
-  const x = 24, y = H - 50;
   fxCtx.fillStyle = `rgba(100,80,200,0.2)`;
-  fxCtx.fillRect(x, y, barW, barH);
-  fxCtx.fillStyle = hslToStr(270 + state.resonance * 60, 70, 60, 0.5);
-  fxCtx.fillRect(x, y, barW * Math.min(1, state.resonance), barH);
+  fxCtx.fillRect(24, H - 50, 100, 3);
+  fxCtx.fillStyle = hsl(270 + state.resonance * 60, 70, 60, 0.5);
+  fxCtx.fillRect(24, H - 50, 100 * Math.min(1, state.resonance), 3);
   fxCtx.fillStyle = `rgba(200,180,255,0.2)`;
   fxCtx.font = '9px monospace';
-  fxCtx.fillText(`共振 ${(state.resonance * 100).toFixed(0)}%`, x, y - 5);
+  fxCtx.fillText(`共振 ${(state.resonance * 100)|0}%`, 24, H - 55);
 }
 
 function render() {
   ctx.clearRect(0, 0, W, H);
   fxCtx.clearRect(0, 0, W, H);
-
   drawTrails();
   drawConnections();
   drawParticles();
   drawCursorField();
   drawRipples();
-  drawDimensionIndicator();
-  drawResonanceMeter();
+  drawDimIndicator();
+  drawResonance();
 }
 
-// --- Interaction ---
+// --- Input ---
 document.addEventListener('mousemove', e => {
   const m = state.mouse;
   m.px = m.x; m.py = m.y;
   m.x = e.clientX; m.y = e.clientY;
   m.vx = m.x - m.px; m.vy = m.y - m.py;
   m.active = true;
-
   const nx = (m.x / W) * 2 - 1, ny = (m.y / H) * 2 - 1;
   for (let d = 0; d < DIM; d++) {
     const target = Math.sin(nx * (d + 1) * 0.7) * Math.cos(ny * (d + 0.5) * 0.9);
     state.cursorEmbedding[d] += (target - state.cursorEmbedding[d]) * 0.05;
   }
 });
-
 document.addEventListener('mouseleave', () => { state.mouse.active = false; });
 
 document.addEventListener('click', e => {
   initAudio();
   const mx = e.clientX, my = e.clientY;
-
-  state.collapseWave = {
-    x: mx, y: my, r: 0, life: 1,
-    hue: (state.time * 0.03) % 360
-  };
-
+  state.collapseWave = { x: mx, y: my, r: 0, life: 1, hue: (state.time * 0.03) % 360 };
   for (const th of thoughts) {
     const dx = th.x - mx, dy = th.y - my;
-    const dist = Math.sqrt(dx*dx + dy*dy);
+    const dist = Math.sqrt(dx * dx + dy * dy);
     if (dist < 200) {
       th.collapsed = true;
       th.collapseTimer = 3000;
       th.activated = Math.max(th.activated, 1 - dist / 200);
       th.energy += 0.2 * (1 - dist / 200);
-      const force = 3 * (1 - dist / 200);
-      th.vx += dx / dist * force;
-      th.vy += dy / dist * force;
+      const f = 3 * (1 - dist / 200);
+      th.vx += dx / (dist + 1) * f;
+      th.vy += dy / (dist + 1) * f;
     }
   }
-
-  for (let i = 0; i < 5; i++) {
-    state.ripples.push({
-      x: mx, y: my, r: i * 5, life: 1 - i * 0.1,
-      hue: (state.time * 0.03 + i * 30) % 360
-    });
+  for (let i = 0; i < 4; i++) {
+    state.ripples.push({ x: mx, y: my, r: i * 6, life: 1 - i * 0.15, hue: (state.time * 0.03 + i * 30) % 360 });
   }
 });
 
 document.addEventListener('wheel', e => {
   initAudio();
   state.dimTarget += e.deltaY * 0.002;
-  const dimIndex = ((state.dimTarget / Math.PI * 2 % DIM) + DIM) % DIM | 0;
-  state.projDims = [dimIndex, (dimIndex + 3) % DIM];
-  dimLabelEl.textContent = `维度 ${dimIndex}`;
-});
-
-document.addEventListener('touchstart', e => {
-  initAudio();
-  const t = e.touches[0];
-  state.mouse.x = t.clientX;
-  state.mouse.y = t.clientY;
-  state.mouse.active = true;
+  const di = ((state.dimTarget / Math.PI * 2 % DIM) + DIM) % DIM | 0;
+  state.projDims = [di, (di + 3) % DIM];
+  dimLabelEl.textContent = `维度 ${di}`;
 }, { passive: true });
 
+document.addEventListener('touchstart', e => { initAudio(); const t = e.touches[0]; state.mouse.x = t.clientX; state.mouse.y = t.clientY; state.mouse.active = true; }, { passive: true });
 document.addEventListener('touchmove', e => {
-  const t = e.touches[0];
-  const m = state.mouse;
-  m.px = m.x; m.py = m.y;
-  m.x = t.clientX; m.y = t.clientY;
+  const t = e.touches[0]; const m = state.mouse;
+  m.px = m.x; m.py = m.y; m.x = t.clientX; m.y = t.clientY;
   m.vx = m.x - m.px; m.vy = m.y - m.py;
-
   const nx = (m.x / W) * 2 - 1, ny = (m.y / H) * 2 - 1;
-  for (let d = 0; d < DIM; d++) {
-    const target = Math.sin(nx * (d + 1) * 0.7) * Math.cos(ny * (d + 0.5) * 0.9);
-    state.cursorEmbedding[d] += (target - state.cursorEmbedding[d]) * 0.05;
-  }
+  for (let d = 0; d < DIM; d++) state.cursorEmbedding[d] += (Math.sin(nx*(d+1)*0.7)*Math.cos(ny*(d+0.5)*0.9) - state.cursorEmbedding[d]) * 0.05;
 }, { passive: true });
-
 document.addEventListener('touchend', () => { state.mouse.active = false; });
 
-// --- Main loop ---
-let lastTime = performance.now();
-let bgTimer = 0;
-
+// --- Loop ---
+let lastTime = performance.now(), bgTimer = 0;
 function loop(now) {
   state.dt = now - lastTime;
   state.time = now;
   lastTime = now;
+  updateFPS(now);
 
   bgTimer += state.dt;
-  if (bgTimer > 50) {
-    drawBackground();
-    bgTimer = 0;
-  }
+  if (bgTimer > 80) { drawBackground(); bgTimer = 0; }
 
   updatePhysics();
   render();
-  updateAudio();
-
+  if (state.audioReady) updateAudio();
   requestAnimationFrame(loop);
 }
-
 drawBackground();
 requestAnimationFrame(loop);
 </script>

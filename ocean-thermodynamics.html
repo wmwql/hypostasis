@@ -645,7 +645,7 @@ class WaveSystem{
   update(){
     this.t++;
     for(let i=1;i<NX-1;i++){
-      const vUp=-(sim.v[NX+i]+sim.v[2*NX+i])*0.5;
+      const vUp=(sim.v[NX+i]+sim.v[2*NX+i])*0.5;
       const conv=(sim.u[i-1]-sim.u[i+1])*0.5;
       const wind=sim.windU[i];
       const target=vUp*10+conv*6+wind*0.5;
