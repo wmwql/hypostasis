@@ -35,6 +35,16 @@ const phaseEl = document.getElementById('phase');
 const dimLabelEl = document.getElementById('dimLabel');
 const fpsEl = document.getElementById('fps');
 
+// --- Spatial grid for O(1) neighbor lookups ---
+const CELL = 160;
+let gridCols = 1, gridRows = 1, grid = [[]];
+function rebuildGrid() {
+  gridCols = Math.ceil(W / CELL) + 1;
+  gridRows = Math.ceil(H / CELL) + 1;
+  grid = new Array(gridCols * gridRows);
+  for (let i = 0; i < grid.length; i++) grid[i] = [];
+}
+
 let W, H, cx, cy;
 function resize() {
   W = window.innerWidth; H = window.innerHeight;
@@ -75,17 +85,6 @@ function noise2d(x, y) {
   return (1-v) * ((1-u) * dot(aa,xf,yf) + u * dot(ba,xf-1,yf))
        + v * ((1-u) * dot(ab,xf,yf-1) + u * dot(bb,xf-1,yf-1));
 }
-
-// --- Spatial grid for O(1) neighbor lookups ---
-const CELL = 160;
-let gridCols, gridRows, grid;
-function rebuildGrid() {
-  gridCols = Math.ceil(W / CELL) + 1;
-  gridRows = Math.ceil(H / CELL) + 1;
-  grid = new Array(gridCols * gridRows);
-  for (let i = 0; i < grid.length; i++) grid[i] = [];
-}
-rebuildGrid();
 
 function gridKey(x, y) {
   const c = Math.max(0, Math.min(gridCols - 1, (x / CELL) | 0));
@@ -507,36 +506,47 @@ function drawParticles() {
       if (spread > 1) {
         for (let s = 0; s < 3; s++) {
           const sa = th.phase * 2 + s * 2.094;
-          ctx.globalAlpha = 0.1 * th.alive;
-          const glowSize = Math.max(6, (rr * 1.5) | 0);
-          const sprite = getGlow(glowSize);
-          ctx.drawImage(sprite,
-            th.x + Math.cos(sa) * spread - glowSize,
-            th.y + Math.sin(sa) * spread - glowSize);
+          const sx = th.x + Math.cos(sa) * spread;
+          const sy = th.y + Math.sin(sa) * spread;
+          const sg = ctx.createRadialGradient(sx, sy, 0, sx, sy, rr * 1.2);
+          sg.addColorStop(0, hsl(th.hue + s * 40, sat, lit, 0.06 * th.alive));
+          sg.addColorStop(1, hsl(th.hue + s * 40, sat, lit, 0));
+          ctx.fillStyle = sg;
+          ctx.beginPath();
+          ctx.arc(sx, sy, rr * 1.2, 0, Math.PI * 2);
+          ctx.fill();
         }
-        ctx.globalAlpha = 1;
       }
     }
 
-    // Core glow via sprite
-    const coreSize = Math.max(6, (rr * 2.5) | 0);
-    const sprite = getGlow(coreSize);
+    // Outer glow (additive, low alpha to prevent blowout)
     ctx.globalCompositeOperation = 'lighter';
-    ctx.globalAlpha = (0.4 + th.activated * 0.4) * th.alive;
-    // Tint by drawing colored rect clipped to sprite
-    ctx.fillStyle = hsl(th.hue, sat, lit, 1);
+    const glowR = rr * 2.5;
+    const og = ctx.createRadialGradient(th.x, th.y, 0, th.x, th.y, glowR);
+    const glowA = (0.04 + th.activated * 0.06) * th.alive;
+    og.addColorStop(0, hsl(th.hue, sat, lit, glowA));
+    og.addColorStop(0.4, hsl(th.hue, sat, lit, glowA * 0.3));
+    og.addColorStop(1, hsl(th.hue, sat, lit, 0));
+    ctx.fillStyle = og;
     ctx.beginPath();
-    ctx.arc(th.x, th.y, coreSize * 0.9, 0, Math.PI * 2);
+    ctx.arc(th.x, th.y, glowR, 0, Math.PI * 2);
     ctx.fill();
-    ctx.globalAlpha = 0.7 * th.alive;
-    ctx.drawImage(sprite, th.x - coreSize, th.y - coreSize);
     ctx.globalCompositeOperation = 'source-over';
-    ctx.globalAlpha = 1;
+
+    // Core
+    const coreG = ctx.createRadialGradient(th.x, th.y, 0, th.x, th.y, rr);
+    coreG.addColorStop(0, hsl(th.hue, sat, Math.min(92, lit + 25), 0.7 * th.alive));
+    coreG.addColorStop(0.5, hsl(th.hue, sat, lit, 0.4 * th.alive));
+    coreG.addColorStop(1, hsl(th.hue, sat, lit, 0));
+    ctx.fillStyle = coreG;
+    ctx.beginPath();
+    ctx.arc(th.x, th.y, rr, 0, Math.PI * 2);
+    ctx.fill();
 
     // Bright center dot
     ctx.fillStyle = hsl(th.hue, sat, Math.min(95, lit + 30), 0.8 * th.alive);
     ctx.beginPath();
-    ctx.arc(th.x, th.y, Math.max(1.5, rr * 0.4), 0, Math.PI * 2);
+    ctx.arc(th.x, th.y, Math.max(1.5, rr * 0.3), 0, Math.PI * 2);
     ctx.fill();
 
     // Label
