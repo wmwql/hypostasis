@@ -434,7 +434,7 @@
 
     #info { top: 12px; right: 12px; font-size: 0.6rem; line-height: 1.5; }
     #event-log { top: 82px; right: 12px; max-width: 220px; }
-    #milestone-panel { top: 220px; left: 6px; }
+    #milestone-panel { top: auto; bottom: 130px; left: auto; right: 8px; }
     .milestone-line { font-size: 0.45rem; }
     .event-line { font-size: 0.6rem; }
 
@@ -447,7 +447,8 @@
     #star-list { grid-template-columns: repeat(9, 1fr); gap: 4px; max-height: none; overflow-x: auto; overflow-y: hidden; padding-bottom: 2px; flex-wrap: nowrap; }
     .star-entry { width: 56px; height: 56px; flex-shrink: 0; font-size: 0.45rem; }
     .star-entry-orb { width: 24px; height: 24px; }
-    #star-panel-toggle { display: none; }
+    #star-panel-toggle { display: flex; }
+    #star-list.collapsed { display: none; }
     .ctrl-group input[type="range"] { width: 50px; }
 
     #mobile-zoom { display: block; }
@@ -470,6 +471,7 @@
     .star-entry-orb { width: 20px; height: 20px; }
     #ui { bottom: 44px; }
     #star-panel { bottom: 46px; }
+    #milestone-panel { bottom: 110px; }
   }
 </style>
 </head>
@@ -2866,12 +2868,22 @@ bodyTypes.forEach((entry, idx) => {
 // Toggle expand/collapse
 const panelToggle = document.getElementById('star-panel-toggle');
 let panelExpanded = false;
+const isMobileQuery = window.matchMedia('(max-width: 768px)');
+if (isMobileQuery.matches) {
+  starList.classList.add('collapsed');
+  panelToggle.textContent = '▸';
+}
 panelToggle.addEventListener('click', (e) => {
   e.stopPropagation();
-  panelExpanded = !panelExpanded;
-  starList.classList.toggle('expanded', panelExpanded);
-  panelToggle.classList.toggle('expanded', panelExpanded);
-  panelToggle.textContent = panelExpanded ? '▾' : '▸';
+  if (isMobileQuery.matches) {
+    const isCollapsed = starList.classList.toggle('collapsed');
+    panelToggle.textContent = isCollapsed ? '▸' : '▾';
+  } else {
+    panelExpanded = !panelExpanded;
+    starList.classList.toggle('expanded', panelExpanded);
+    panelToggle.classList.toggle('expanded', panelExpanded);
+    panelToggle.textContent = panelExpanded ? '▾' : '▸';
+  }
 });
 
 // Mode buttons
