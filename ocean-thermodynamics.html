@@ -134,7 +134,7 @@ class FluidSim{
     this.u=new Float32Array(n);this.v=new Float32Array(n);
     this.u0=new Float32Array(n);this.v0=new Float32Array(n);
     this.T=new Float32Array(n);this.T0=new Float32Array(n);
-    this.S=new Float32Array(n);this.rho=new Float32Array(n);
+    this.S=new Float32Array(n);this.S0=new Float32Array(n);this.rho=new Float32Array(n);
     this.p=new Float32Array(n);this.p0=new Float32Array(n);
     this.div=new Float32Array(n);
     this.terrain=new Float32Array(NX);
@@ -215,11 +215,15 @@ class FluidSim{
     }
     this.p.fill(0);
     for(let iter=0;iter<JACOBI_ITER;iter++){
-      this.p0.set(this.p);
-      for(let j=1;j<NY-1;j++)for(let i=1;i<NX-1;i++){
+      // Red-Black Gauss-Seidel — ~2x faster convergence, no copy array
+      for(let j=1;j<NY-1;j++){const i0=2-(j&1);for(let i=i0;i<NX-1;i+=2){
         const k=this.idx(i,j);
-        this.p[k]=(this.p0[k-1]+this.p0[k+1]+this.p0[k-NX]+this.p0[k+NX]+this.div[k])/4;
-      }
+        this.p[k]=(this.p[k-1]+this.p[k+1]+this.p[k-NX]+this.p[k+NX]+this.div[k])/4;
+      }}
+      for(let j=1;j<NY-1;j++){const i0=1+(j&1);for(let i=i0;i<NX-1;i+=2){
+        const k=this.idx(i,j);
+        this.p[k]=(this.p[k-1]+this.p[k+1]+this.p[k-NX]+this.p[k+NX]+this.div[k])/4;
+      }}
     }
     for(let j=1;j<NY-1;j++)for(let i=1;i<NX-1;i++){
       const k=this.idx(i,j);
@@ -251,6 +255,12 @@ class FluidSim{
       for(let j=maxJ;j<NY;j++){const k=this.idx(i,j);this.u[k]=0;this.v[k]=0;}
     }
     for(let i=0;i<NX;i++)this.T[this.idx(i,NY-1)]=2;
+    // Salinity boundaries — surface evaporation + deep water
+    for(let i=0;i<NX;i++){
+      const lat=i/(NX-1),peak=Math.exp(-((lat-sunNormX)**2)/0.08);
+      this.S[this.idx(i,0)]=Math.min(37.5,this.S[this.idx(i,0)]+0.003*params.solar*peak);
+      this.S[this.idx(i,NY-1)]=34.5;
+    }
     for(let i=0;i<NX;i++){
       const x=i/(NX-1),ridgeDist=Math.abs(x-0.45);
       if(ridgeDist<0.06){
@@ -269,9 +279,11 @@ class FluidSim{
     this.advect(this.v0,this.v,this.u0,this.v0);
     this.pressureSolve();
     const damp=0.998;for(let k=0;k<NX*NY;k++){this.u[k]*=damp;this.v[k]*=damp;}
-    this.applyBoundary();
     this.T0.set(this.T);this.advect(this.T0,this.T,this.u,this.v);
     this.diffuse(this.T,DIFFUSION_T*params.diffusion);
+    // Salinity advection — makes the simulation truly thermohaline
+    this.S0.set(this.S);this.advect(this.S0,this.S,this.u,this.v);
+    this.diffuse(this.S,DIFFUSION_T*params.diffusion*0.4);
     this.applyBoundary();
   }
 }
@@ -383,15 +395,15 @@ class Ecosystem{
       let nearD=Infinity,nearI=-1;
       for(let z=0;z<this.zoo.length;z++){const dx=this.zoo[z].x-p.x,dy=this.zoo[z].y-p.y,d=dx*dx+dy*dy;if(d<nearD){nearD=d;nearI=z;}}
       let px=0,py=0;
-      if(nearI>=0&&nearD<144){
+      if(nearI>=0&&nearD<225){
         const t=this.zoo[nearI],dx=t.x-p.x,dy=t.y-p.y,d=Math.sqrt(dx*dx+dy*dy);
-        if(d>0){px=dx/d*0.15;py=dy/d*0.15;}
-        if(d<2.5){p.energy+=0.4;this.zoo.splice(nearI,1);}
+        if(d>0){px=dx/d*0.2;py=dy/d*0.2;}
+        if(d<3.5){p.energy+=0.5;this.zoo.splice(nearI,1);}
       }
       p.x+=u*0.6+px+Math.sin(p.phase)*0.12+(Math.random()-0.5)*0.15;p.y+=v*0.6+py+Math.cos(p.phase*0.7)*0.06+(Math.random()-0.5)*0.15;
       p.x=clamp(p.x,1,NX-2);p.y=clamp(p.y,1,NY-2);
       const ti=clamp(Math.floor(p.x),0,NX-1);if(p.y/(NY-1)>this.fluid.terrain[ti])p.y=this.fluid.terrain[ti]*(NY-1)-1;
-      p.energy-=0.004;
+      p.energy-=0.002;
       p.trail.push({x:p.x,y:p.y});if(p.trail.length>8)p.trail.shift();
       if(p.energy<=0){const nk=clamp(Math.floor(p.y),0,NY-1)*NX+clamp(Math.floor(p.x),0,NX-1);this.nutrients[nk]=Math.min(1,this.nutrients[nk]+0.3);this.fish.splice(f,1);continue;}
       if(p.energy>2.0&&this.fish.length+newFish.length<80){p.energy*=0.5;newFish.push(this.createFish(p.x+(Math.random()-0.5)*3,p.y+(Math.random()-0.5)*3));}
@@ -465,16 +477,16 @@ class Ecosystem{
         if(d<nearD){nearD=d;nearTarget=this.trilobites[t];nearArr=this.trilobites;nearIdx=t;}
       }
       let hx=0,hy=0;
-      if(nearTarget&&nearD<400){
+      if(nearTarget&&nearD<625){
         const dx=nearTarget.x-p.x,dy=nearTarget.y-p.y,d=Math.sqrt(dx*dx+dy*dy);
-        if(d>0){hx=dx/d*0.22;hy=dy/d*0.22;}
-        if(d<4){p.energy+=0.6;nearArr.splice(nearIdx,1);}
+        if(d>0){hx=dx/d*0.3;hy=dy/d*0.3;}
+        if(d<5){p.energy+=0.8;nearArr.splice(nearIdx,1);}
       }
       p.x+=u*0.5+hx+Math.sin(p.phase)*0.18+(Math.random()-0.5)*0.15;
       p.y+=v*0.5+hy+Math.cos(p.phase*0.5)*0.1+(Math.random()-0.5)*0.15;
       p.x=clamp(p.x,1,NX-2);p.y=clamp(p.y,2,NY-3);
       const ti=clamp(Math.floor(p.x),0,NX-1);if(p.y/(NY-1)>this.fluid.terrain[ti])p.y=this.fluid.terrain[ti]*(NY-1)-2;
-      p.energy-=0.006;
+      p.energy-=0.003;
       p.trail.push({x:p.x,y:p.y});if(p.trail.length>10)p.trail.shift();
       if(p.energy<=0){const nk=clamp(Math.floor(p.y),0,NY-1)*NX+clamp(Math.floor(p.x),0,NX-1);this.nutrients[nk]=Math.min(1,this.nutrients[nk]+0.5);this.anomalocaris.splice(i,1);continue;}
       if(p.energy>2.5&&this.anomalocaris.length+newAnom.length<30){p.energy*=0.5;newAnom.push(this.createAnom(p.x+(Math.random()-0.5)*5,p.y+(Math.random()-0.5)*4));}

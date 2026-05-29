@@ -1,0 +1,1690 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>算法之美 · classic algorithms</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #050510; overflow: hidden; font-family: 'Georgia', serif; cursor: crosshair; user-select: none; -webkit-user-select: none; touch-action: manipulation; }
+  canvas { display: block; position: fixed; top: 0; left: 0; z-index: 1; touch-action: none; }
+
+  /* ═══ Bottom UI ═══ */
+  #ui { position: fixed; z-index: 10; bottom: 28px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 2px; pointer-events: none; }
+  #title { color: rgba(255,255,255,0.88); font-size: 1.5rem; letter-spacing: 0.15em; text-shadow: 0 0 40px rgba(140,200,255,0.3); }
+  #subtitle { color: rgba(255,255,255,0.4); font-size: 0.7rem; letter-spacing: 0.2em; }
+  #hint { color: rgba(255,255,255,0.18); font-size: 0.55rem; letter-spacing: 0.08em; transition: opacity 0.4s; }
+
+  /* ═══ Step status bar ═══ */
+  #step-status { position: fixed; z-index: 10; bottom: 96px; left: 50%; transform: translateX(-50%); pointer-events: none; color: rgba(140,220,200,0.55); font-size: 0.65rem; letter-spacing: 0.06em; text-align: center; opacity: 1; transition: opacity 0.8s; font-family: 'Georgia', serif; text-shadow: 0 0 12px rgba(140,220,200,0.2); }
+  #step-status.hidden { opacity: 0; }
+
+  /* ═══ Legend panel ═══ */
+  #legend { position: fixed; z-index: 12; bottom: 120px; right: 20px; background: rgba(12,12,30,0.9); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 10px 14px; pointer-events: none; opacity: 1; transition: opacity 0.8s; backdrop-filter: blur(8px); display: flex; flex-direction: column; gap: 4px; max-width: 220px; }
+  #legend.hidden { opacity: 0; }
+  .leg-item { display: flex; align-items: center; gap: 7px; font-size: 0.6rem; letter-spacing: 0.04em; color: rgba(255,255,255,0.5); }
+  .leg-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .leg-rect { width: 10px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+  .leg-line { width: 10px; height: 2px; border-radius: 1px; flex-shrink: 0; }
+  .leg-ellipse { width: 12px; height: 6px; border-radius: 50%; flex-shrink: 0; border: 1px solid; }
+  #legend-title { color: rgba(255,255,255,0.35); font-size: 0.5rem; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 2px; }
+
+  /* ═══ Scene menu ═══ */
+  #scene-menu { position: fixed; top: 170px; left: 12px; z-index: 15; display: flex; flex-direction: column; gap: 3px; pointer-events: all; padding: 18px 4px 18px 8px; border-left: 1px solid rgba(255,255,255,0.06); }
+  .mode-btn { background: none; border: none; color: rgba(255,255,255,0.22); padding: 2px 0; font-family: 'Georgia', serif; font-size: 0.72rem; letter-spacing: 0.08em; cursor: pointer; transition: color 0.3s; text-align: left; white-space: nowrap; }
+  .mode-btn:hover { color: rgba(255,255,255,0.55); }
+  .mode-btn.active { color: rgba(255,255,255,0.9); text-shadow: 0 0 8px rgba(140,200,255,0.25); }
+
+  /* ═══ Info ═══ */
+  #info { position: fixed; top: 24px; right: 24px; z-index: 10; color: rgba(255,255,255,0.35); font-size: 0.7rem; letter-spacing: 0.06em; text-align: right; line-height: 1.8; font-family: 'Courier New', monospace; pointer-events: none; }
+
+  /* ═══ Layer indicator ═══ */
+  #layer-indicator { position: fixed; top: 24px; left: 50%; transform: translateX(-50%); z-index: 15; pointer-events: none; display: flex; align-items: center; gap: 10px; opacity: 0; transition: opacity 0.35s; }
+  #layer-indicator.visible { opacity: 1; }
+  .layer-dot { width: 8px; height: 8px; border-radius: 50%; transition: all 0.4s; }
+  .layer-label { color: rgba(255,255,255,0.55); font-size: 0.68rem; letter-spacing: 0.1em; font-family: 'Georgia', serif; }
+  .layer-label.structure { color: rgba(255,180,100,0.7); }
+
+  /* ═══ Help ═══ */
+  #help-toggle { position: fixed; top: 20px; left: 24px; z-index: 20; width: 32px; height: 32px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.2); background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.45); font-size: 0.9rem; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.35s; pointer-events: all; font-family: 'Georgia', serif; line-height: 1; }
+  #help-toggle:hover, #help-toggle.open { background: rgba(255,255,255,0.14); color: #fff; border-color: rgba(255,255,255,0.4); box-shadow: 0 0 18px rgba(140,200,255,0.1); }
+  #help-panel { position: fixed; top: 54px; left: 24px; z-index: 19; background: rgba(12,12,30,0.92); border: 1px solid rgba(255,255,255,0.12); border-radius: 10px; padding: 16px 18px; display: flex; flex-direction: column; gap: 12px; min-width: 300px; max-width: 360px; opacity: 0; visibility: hidden; transform: translateY(-8px); transition: all 0.3s; pointer-events: none; backdrop-filter: blur(12px); max-height: calc(100vh - 80px); overflow-y: auto; }
+  #help-panel::-webkit-scrollbar { width: 0; }
+  #help-panel.visible { opacity: 1; visibility: visible; transform: translateY(0); pointer-events: all; }
+  .hp-title { color: rgba(255,255,255,0.75); font-size: 0.8rem; letter-spacing: 0.12em; padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.08); }
+  .hp-desc { color: rgba(255,255,255,0.45); font-size: 0.65rem; letter-spacing: 0.04em; line-height: 1.7; }
+  .hp-analogy { color: rgba(140,220,200,0.55); font-size: 0.62rem; letter-spacing: 0.04em; line-height: 1.6; padding: 8px 10px; background: rgba(140,220,200,0.04); border-radius: 6px; border: 1px solid rgba(140,220,200,0.08); }
+  .hp-analogy-label { color: rgba(140,220,200,0.4); font-size: 0.5rem; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 2px; }
+  .hp-formula { color: rgba(140,200,255,0.6); font-size: 0.72rem; letter-spacing: 0.04em; font-family: 'Courier New', monospace; padding: 8px 10px; background: rgba(100,180,255,0.04); border-radius: 6px; border: 1px solid rgba(100,180,255,0.08); }
+  .hp-section { display: flex; flex-direction: column; gap: 5px; }
+  .hp-label { color: rgba(255,255,255,0.35); font-size: 0.55rem; letter-spacing: 0.08em; text-transform: uppercase; }
+  .hp-row { color: rgba(255,255,255,0.5); font-size: 0.62rem; letter-spacing: 0.05em; display: flex; align-items: center; gap: 6px; }
+  .hp-ref { color: rgba(255,255,255,0.3); font-size: 0.58rem; letter-spacing: 0.03em; line-height: 1.5; font-style: italic; }
+  kbd { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); border-radius: 3px; padding: 1px 6px; font-family: 'Courier New', monospace; font-size: 0.6rem; color: rgba(255,255,255,0.65); }
+
+  /* ═══ Controls ═══ */
+  #algo-ctrl { position: fixed; bottom: 70px; left: 50%; transform: translateX(-50%); z-index: 15; display: flex; align-items: center; gap: 8px; pointer-events: all; }
+  .ctrl-btn { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12); color: rgba(255,255,255,0.5); padding: 5px 12px; border-radius: 12px; font-family: inherit; font-size: 0.62rem; letter-spacing: 0.06em; cursor: pointer; transition: all 0.3s; }
+  .ctrl-btn:hover { background: rgba(255,255,255,0.12); color: rgba(255,255,255,0.8); }
+  .ctrl-btn.on { background: rgba(100,180,255,0.18); color: rgba(255,255,255,0.8); border-color: rgba(100,180,255,0.4); box-shadow: 0 0 12px rgba(100,180,255,0.1); }
+
+  @media (max-width: 768px) {
+    #scene-menu { top: 100px; left: 8px; font-size: 0.65rem; }
+    #info { font-size: 0.6rem; right: 12px; top: 16px; }
+    #help-panel { min-width: 240px; max-width: 280px; left: 12px; }
+    #ui { bottom: 18px; }
+    #title { font-size: 1.2rem; }
+    #legend { bottom: 100px; right: 8px; max-width: 170px; font-size: 0.5rem; }
+    #step-status { bottom: 80px; font-size: 0.55rem; }
+  }
+  @media (max-width: 600px) {
+    #subtitle { display: none; }
+    .mode-btn { font-size: 0.62rem; }
+    #legend { display: none; }
+  }
+
+  /* ═══ Parameter sliders (right-side panel like legend) ═══ */
+  #kf-params { position: fixed; z-index: 14; bottom: 280px; right: 20px; background: rgba(12,12,30,0.9); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 10px 14px; pointer-events: all; opacity: 1; transition: opacity 0.8s; backdrop-filter: blur(8px); display: flex; flex-direction: column; gap: 5px; min-width: 200px; }
+  #kf-params.hidden { opacity: 0; pointer-events: none; }
+  #kf-params-title { color: rgba(255,255,255,0.35); font-size: 0.5rem; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 1px; }
+  #param-panel { display: flex; flex-direction: column; gap: 4px; }
+  .param-row { display: flex; align-items: center; gap: 6px; font-size: 0.55rem; letter-spacing: 0.05em; color: rgba(255,255,255,0.45); }
+  .param-row label { width: 62px; text-align: right; color: rgba(255,255,255,0.35); flex-shrink: 0; }
+  .param-row input[type=range] { width: 64px; cursor: pointer; -webkit-appearance: none; appearance: none; background: rgba(255,255,255,0.12); height: 2px; border-radius: 1px; }
+  .param-row input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 10px; height: 10px; border-radius: 50%; background: rgba(140,200,255,0.8); cursor: pointer; }
+  .param-row .param-val { width: 32px; font-family: 'Courier New', monospace; color: rgba(140,200,255,0.65); font-size: 0.55rem; text-align: left; }
+  #param-tip { color: rgba(255,200,140,0.4); font-size: 0.5rem; letter-spacing: 0.04em; text-align: left; margin-top: 3px; line-height: 1.5; }
+  @media (max-width: 768px) {
+    #kf-params { bottom: 200px; right: 8px; min-width: 170px; }
+  }
+  @media (max-width: 600px) {
+    #kf-params { bottom: 170px; right: 4px; min-width: 150px; padding: 8px 10px; }
+  }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<div id="ui">
+  <div id="title">卡尔曼滤波</div>
+  <div id="subtitle">Kalman Filter · 递归状态估计</div>
+  <div id="hint">移动鼠标控制目标 · L 切换图层 · ? 查看介绍</div>
+</div>
+
+<div id="step-status"></div>
+<div id="legend"></div>
+
+<div id="scene-menu">
+  <button class="mode-btn active" data-algo="0">1 · 卡尔曼滤波</button>
+  <button class="mode-btn" data-algo="1">2 · A* 寻路</button>
+  <button class="mode-btn" data-algo="2">3 · 傅里叶变换</button>
+  <button class="mode-btn" data-algo="3">4 · 梯度下降</button>
+  <button class="mode-btn" data-algo="4">5 · K 均值聚类</button>
+</div>
+
+<div id="info"></div>
+
+<div id="layer-indicator">
+  <div class="layer-dot" id="layer-dot"></div>
+  <span class="layer-label" id="layer-label">表象</span>
+</div>
+
+<div id="help-toggle">?</div>
+<div id="help-panel">
+  <div class="hp-title" id="hp-title"></div>
+  <div class="hp-analogy"><div class="hp-analogy-label">类比理解</div><div id="hp-analogy"></div></div>
+  <div class="hp-desc" id="hp-desc"></div>
+  <div class="hp-formula" id="hp-formula"></div>
+  <div class="hp-section">
+    <div class="hp-label">操作</div>
+    <div class="hp-row" id="hp-hint"></div>
+  </div>
+  <div class="hp-section">
+    <div class="hp-label">键盘</div>
+    <div class="hp-row"><kbd>1</kbd>-<kbd>5</kbd> 切换算法</div>
+    <div class="hp-row"><kbd>L</kbd> 表象/教学层</div>
+    <div class="hp-row"><kbd>Space</kbd> 暂停 · <kbd>R</kbd> 重置</div>
+  </div>
+  <div class="hp-section">
+    <div class="hp-label">参考文献</div>
+    <div id="hp-refs"></div>
+  </div>
+</div>
+
+<div id="algo-ctrl"></div>
+<div id="kf-params" class="hidden"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+// 算法之美 · 经典算法可视化  (教学版)
+// ═══════════════════════════════════════════════════════════════
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+let W, H, dpr;
+let currentAlgo = -1;
+let paused = false;
+let showStruct = false;
+let lastTime = 0;
+let fps = 0, fpsCount = 0, fpsTime = 0;
+let mouseX = 0, mouseY = 0, mouseDown = false, mouseInCanvas = false;
+let legendVisible = true; let legendTimer = 0;
+let algoTime = 0;
+
+// ── 算法描述 (含图例和类比) ────────────────────────────────────
+const ALGOS = [
+  {
+    title: '卡尔曼滤波 · Kalman Filter',
+    titleShort: '卡尔曼滤波',
+    subtitle: 'Kalman Filter · 递归状态估计',
+    analogy: '就像你的手机同时用 GPS 和惯性传感器定位：GPS 有噪声会乱跳，惯性传感器能平滑推测但会漂移。卡尔曼滤波把两者加权平均——GPS 准的时候多信 GPS，GPS 跳了多信惯性推测。',
+    desc: '由 Rudolf E. Kálmán 于 1960 年提出。核心思想：每次收到一个带噪声的测量值时，把它和"我根据运动模型的猜测"做一次加权平均，权重大小由各自的不确定度决定。',
+    formula: 'x̂ₖ = F x̂ₖ₋₁ + Kₖ(zₖ − H F x̂ₖ₋₁)',
+    hint: '移动鼠标控制目标 · 底部滑块调参数 · σₚ 越大跟踪越快',
+    steps: [
+      '🏃 预测步：根据上一帧的速度，推测目标现在应该在哪里',
+      '👁️ 测量：传感器收到新位置，但带着噪声（橙色点）',
+      '⚖️ 更新步：对比预测值与测量值，加权融合得到最终估计',
+      '📉 不确定度下降：每次都让估计更准一些（椭圆缩小）',
+    ],
+    legend: [
+      { dot: 'rgba(100,255,180,0.8)', label: '真实位置（目标）' },
+      { dot: 'rgba(100,180,255,0.9)', label: '滤波器估计值' },
+      { dot: 'rgba(255,140,100,0.7)', label: '传感器测量值（带噪声）' },
+      { ellipse: 'rgba(100,180,255,0.25)', label: '估计不确定度（越大越不确信）' },
+      { line: 'rgba(100,255,180,0.2)', label: '真实轨迹' },
+      { line: 'rgba(100,180,255,0.35)', label: '估计轨迹' },
+    ],
+    refs: ['R. E. Kálmán, "A New Approach to Linear Filtering and Prediction Problems" (1960)', 'G. Welch & G. Bishop, "An Introduction to the Kalman Filter" (2006)']
+  },
+  {
+    title: 'A* 寻路 · A* Pathfinding',
+    titleShort: 'A* 寻路',
+    subtitle: 'A* Pathfinding · 启发式搜索',
+    analogy: '就像你开车导航选路线：已开了多少公里 = g(n)，离目的地直线距离 = h(n)，f(n)=g+h 就是"总成本估算"。A* 每次先试 f 值最小的那条路，因为它看起来最有希望。为什么不是只贪心走最近的？因为可能前面有堵墙（墙壁 = 已走过更远的真实代价）。',
+    desc: '由 Hart, Nilsson & Raphael 于 1968 年提出。每次从开放集（待探索节点）中挑 f(n)=g(n)+h(n) 最小的节点展开，把出边邻居加入开放集。当终点被选中时，回溯 cameFrom 链即得最短路径。',
+    formula: 'f(n) = g(n) + h(n)\ng → 已走过代价  h → 到终点的乐观估计',
+    hint: '拖拽绘制/擦除墙壁 · Shift + 点击设起点/终点 · R 重置',
+    steps: [
+      '🔍 从起点开始，计算邻居的 f = g + h',
+      '📋 开放集（亮蓝） = 待探索 · 已探索（暗蓝） = 不会再走了',
+      '🎯 挑 f 最小的格子展开 → 重复直到找到终点',
+      '✅ 回溯路径（绿线）即为最短路径',
+    ],
+    legend: [
+      { rect: 'rgba(100,255,180,0.8)', label: '起点（绿方块）' },
+      { rect: 'rgba(255,120,100,0.8)', label: '终点（红方块）' },
+      { rect: 'rgba(60,60,90,0.7)', label: '墙壁（不可通行）' },
+      { rect: 'rgba(100,200,255,0.2)', label: '开放集（待探索）' },
+      { rect: 'rgba(50,70,120,0.2)', label: '已探索（不会再走）' },
+      { line: 'rgba(100,255,180,0.7)', label: '最短路径', width: 3 },
+    ],
+    refs: ['P. Hart et al., "A Formal Basis for Heuristic Determination of Minimum Cost Paths" (1968)', 'A. Patel, "Introduction to A*" — Red Blob Games']
+  },
+  {
+    title: '傅里叶变换 · Fourier Transform',
+    titleShort: '傅里叶变换',
+    subtitle: 'Fourier Transform · 频域分解',
+    analogy: '就像一首交响乐录音里，你可以听出每把乐器的声音。傅里叶变换就是数学上的"拆乐器"——把任意一段信号（时域波形）拆成不同频率的正弦波（频谱）。低频 = 大提琴长音，高频 = 小提琴颤音。',
+    desc: '将时域信号分解为不同频率正弦波之和。Cooley & Tukey 的 FFT 算法把复杂度从 O(n²) 降到 O(n log n)，让实时频谱分析变成可能——你的手机降噪、JPEG 压缩、MP3 编码全都依赖它。',
+    formula: 'X[k] = Σ x[n] · e^(−j2πkn/N)\n把信号 x[n] 投到频率为 k 的"探测波"上',
+    hint: '点击频谱柱状图切换频率分量 · 观察时域波形变化',
+    steps: [
+      '📶 上方 = 时域波形：信号随时间的变化',
+      '📊 下方 = 频谱：把信号拆成不同频率的柱',
+      '🖱️ 点击频谱柱来开关频率 → 看波形实时变化',
+      '✨ 亮柱 = 该频率正在参与合成信号',
+    ],
+    legend: [
+      { line: 'rgba(100,180,255,0.7)', label: '合成后的时域信号', width: 1.5 },
+      { rect: 'hsla(240,70%,55%,0.8)', label: '活跃的频率分量' },
+      { rect: 'rgba(255,255,255,0.15)', label: '不活跃的频率分量' },
+    ],
+    refs: ['J. W. Cooley & J. W. Tukey, "An Algorithm for Machine Calculation of Complex Fourier Series" (1965)', 'A. V. Oppenheim, "Discrete-Time Signal Processing" (1989)']
+  },
+  {
+    title: '梯度下降 · Gradient Descent',
+    titleShort: '梯度下降',
+    subtitle: 'Gradient Descent · 连续优化',
+    analogy: '想象你蒙着眼站在一座多峰山谷里，想找最低点。每一步你只能用脚探测周围哪个方向最陡（= 算梯度），然后朝最陡的下坡方向走一小步（= 参数更新）。初始位置不同，你最终到达的山谷也不同——就像粒子落在不同的极小值点。',
+    desc: '沿损失函数的负梯度方向迭代更新参数。这里用 Himmelblau 函数 f(x,y)=(x²+y-11)²+(x+y²-7)²，它有 4 个全局极小值山谷。Vanilla 用恒定步长，Momentum 加惯性防震荡，Adam 自适应调整步长。',
+    formula: 'θₜ₊₁ = θₜ − η ∇f(θₜ)\nη = 学习率（步长）  ∇f = 最陡上升方向',
+    hint: '点击画布放置粒子 · 1/2/3 切换优化器 · 看路径差异',
+    steps: [
+      '📍 每个粒子从不同起点出发',
+      '📐 每一步计算梯度（= 最陡的下山方向）',
+      '🚶 沿梯度负方向迈一小步 → 重复',
+      '🎯 不同起点 → 可能收敛到不同的山谷底',
+    ],
+    legend: [
+      { dot: 'rgba(100,220,255,0.9)', label: '梯度下降粒子' },
+      { line: 'rgba(100,220,255,0.4)', label: '下降路径（轨迹）' },
+      { dot: 'rgba(255,255,255,0.2)', label: '极小值点（山谷底部）' },
+      { rect: 'rgba(255,180,100,0.01)', label: '背景色 = 损失函数值（越亮 = 越高）' },
+    ],
+    refs: ['A. Cauchy, "Méthode générale pour la résolution des systèmes d\'équations simultanées" (1847)', 'D. P. Kingma & J. Ba, "Adam: A Method for Stochastic Optimization" (2014)']
+  },
+  {
+    title: 'K 均值聚类 · K-Means Clustering',
+    titleShort: 'K 均值聚类',
+    subtitle: 'K-Means · 无监督学习',
+    analogy: '就像开学第一天老师要分 5 个小组：先随机指定 5 个临时组长（= 随机初始化质心），每个同学站到离自己最近的组长旁边（= E 步分配），然后组长走到组员的中心位置（= M 步更新），重复直到组长不再移动。',
+    desc: '由 Stuart Lloyd 于 1957 年提出。交替执行 E 步（Assign: 每个点分配给最近的质心）和 M 步（Update: 质心移到簇内均值）。WCSS（簇内平方和）随迭代单调递减，保证收敛（但不一定是全局最优）。',
+    formula: 'E 步: cᵢ = argminₖ ||xᵢ − μₖ||²\nM 步: μₖ = mean({xᵢ : cᵢ = k})',
+    hint: '点击画布添加数据点 · Space 手动单步 · Auto 自动播放',
+    steps: [
+      '🎲 初始化：随机选 K 个点作为临时质心（✚ 十字）',
+      '🏷️ E-分配步：每个点归属到最近的质心',
+      '📐 M-更新步：质心挪到该簇所有点的平均值位置',
+      '🔄 重复 E → M 直到质心不再移动 = 收敛',
+    ],
+    legend: [
+      { dot: '(multi)', label: '数据点（颜色 = 所属簇）' },
+      { cross: '(multi)', label: '簇质心 ✚（该簇的中心）' },
+      { rect: 'rgba(255,180,100,0.04)', label: '结构层：Voronoi 分割线（L键）' },
+    ],
+    refs: ['S. Lloyd, "Least Squares Quantization in PCM" (1957/1982)', 'D. Arthur & S. Vassilvitskii, "k-means++: Advantages of Careful Seeding" (2007)']
+  },
+];
+
+// ══════════════════════════════════════════════════════════════
+// 工具函数
+// ══════════════════════════════════════════════════════════════
+function randn() {
+  let u = 0, v = 0;
+  while (u === 0) u = Math.random();
+  while (v === 0) v = Math.random();
+  return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+}
+function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+function lerp(a, b, t) { return a + (b - a) * t; }
+function matMul(A, B) {
+  const m = A.length, n = B[0].length, p = B.length;
+  const C = Array.from({length: m}, () => new Float64Array(n));
+  for (let i = 0; i < m; i++)
+    for (let k = 0; k < p; k++) {
+      const a = A[i][k];
+      for (let j = 0; j < n; j++) C[i][j] += a * B[k][j];
+    }
+  return C;
+}
+function matT(A) {
+  const m = A.length, n = A[0].length;
+  const B = Array.from({length: n}, () => new Float64Array(m));
+  for (let i = 0; i < m; i++) for (let j = 0; j < n; j++) B[j][i] = A[i][j];
+  return B;
+}
+function matAdd(A, B) { return A.map((r, i) => r.map((v, j) => v + B[i][j])); }
+function matSub(A, B) { return A.map((r, i) => r.map((v, j) => v - B[i][j])); }
+function matInv2(M) {
+  const a = M[0][0], b = M[0][1], c = M[1][0], d = M[1][1];
+  const det = a * d - b * c;
+  if (Math.abs(det) < 1e-12) return [[1,0],[0,1]];
+  return [[d / det, -b / det], [-c / det, a / det]];
+}
+function eye(n) {
+  const I = Array.from({length: n}, () => new Float64Array(n));
+  for (let i = 0; i < n; i++) I[i][i] = 1;
+  return I;
+}
+
+// ── Canvas ────────────────────────────────────────────────────
+function resize() {
+  dpr = window.devicePixelRatio || 1;
+  W = window.innerWidth; H = window.innerHeight;
+  canvas.width = W * dpr; canvas.height = H * dpr;
+  canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  if (currentAlgo === 1) initAStar();
+  if (currentAlgo === 3) { GD.contourDirty = true; }
+}
+window.addEventListener('resize', resize);
+resize();
+
+// ── 绘制辅助 ─────────────────────────────────────────────────
+function drawTrail(pts, colorBase, maxAlpha, width) {
+  if (pts.length < 2) return;
+  ctx.lineCap = 'round';
+  for (let i = 1; i < pts.length; i++) {
+    const a = (i / pts.length) * maxAlpha;
+    ctx.beginPath();
+    ctx.moveTo(pts[i - 1].x, pts[i - 1].y);
+    ctx.lineTo(pts[i].x, pts[i].y);
+    ctx.strokeStyle = colorBase + a.toFixed(3) + ')';
+    ctx.lineWidth = width * (i / pts.length);
+    ctx.stroke();
+  }
+}
+function drawCovEllipse(cx, cy, P, scale, fill, stroke) {
+  const a = P[0][0], b = P[0][1], d = P[1][1];
+  const trace = a + d;
+  const det = a * d - b * b;
+  const disc = Math.sqrt(Math.max(0, trace * trace / 4 - det));
+  const l1 = Math.max(0, trace / 2 + disc);
+  const l2 = Math.max(0, trace / 2 - disc);
+  const theta = Math.atan2(2 * b, a - d) / 2;
+  const rx = Math.sqrt(l1) * scale;
+  const ry = Math.sqrt(l2) * scale;
+  if (rx > 500 || ry > 500) return;
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(theta);
+  ctx.beginPath();
+  ctx.ellipse(0, 0, Math.max(1, rx), Math.max(1, ry), 0, 0, Math.PI * 2);
+  if (fill && fill !== 'transparent') { ctx.fillStyle = fill; ctx.fill(); }
+  if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = 1; ctx.stroke(); }
+  ctx.restore();
+}
+function drawLabel(x, y, text, color, fontSize, offsetX, offsetY) {
+  const fs = fontSize || 10;
+  ctx.font = `${fs}px Georgia`;
+  ctx.fillStyle = color || 'rgba(255,255,255,0.55)';
+  ctx.fillText(text, x + (offsetX || 12), y + (offsetY || -4));
+  // tiny leader dot
+  ctx.beginPath();
+  ctx.arc(x, y, 1.5, 0, Math.PI * 2);
+  ctx.fillStyle = color || 'rgba(255,255,255,0.3)';
+  ctx.fill();
+}
+
+// ── 图例渲染 ──────────────────────────────────────────────────
+function renderLegend(algo) {
+  const leg = document.getElementById('legend');
+  const a = ALGOS[algo];
+  let html = '<div id="legend-title">图例</div>';
+  for (const item of a.legend) {
+    if (item.dot) {
+      if (item.dot === '(multi)') {
+        const colors = ['rgba(100,180,255,0.6)','rgba(255,140,160,0.6)','rgba(140,255,180,0.6)','rgba(255,210,100,0.6)','rgba(200,160,255,0.6)'];
+        html += `<div class="leg-item"><span style="display:flex;gap:2px;">${colors.map(c => `<span style="width:4px;height:8px;border-radius:1px;background:${c};flex-shrink:0;"></span>`).join('')}</span>${item.label}</div>`;
+      } else {
+        html += `<div class="leg-item"><span class="leg-dot" style="background:${item.dot};"></span>${item.label}</div>`;
+      }
+    } else if (item.ellipse) {
+      html += `<div class="leg-item"><span class="leg-ellipse" style="border-color:${item.ellipse};background:transparent;"></span>${item.label}</div>`;
+    } else if (item.rect) {
+      html += `<div class="leg-item"><span class="leg-rect" style="background:${item.rect};"></span>${item.label}</div>`;
+    } else if (item.line) {
+      html += `<div class="leg-item"><span class="leg-line" style="background:${item.line};${item.width?'height:'+item.width+'px':''}"></span>${item.label}</div>`;
+    } else if (item.cross) {
+      html += `<div class="leg-item"><span style="color:rgba(255,255,255,0.6);width:8px;text-align:center;flex-shrink:0;">✚</span>${item.label}</div>`;
+    }
+  }
+  leg.innerHTML = html;
+}
+
+// ══════════════════════════════════════════════════════════════
+// 1. 卡尔曼滤波
+// ══════════════════════════════════════════════════════════════
+const KF = {
+  x: null, P: null,
+  trueX: 0, trueY: 0, pathT: 0,
+  measureNoise: 50, processNoise: 0.5,
+  measurements: [], estimates: [], truePath: [],
+  lastMeasure: 0, measureInterval: 0.08,
+  maxTrail: 300, interactive: false,
+  kalmanGain: 0, innovation: 0, inPredict: true,
+};
+
+function initKalman() {
+  const cx = W / 2, cy = H / 2;
+  KF.x = [[cx], [cy], [0], [0]];
+  KF.P = [[2500,0,0,0],[0,2500,0,0],[0,0,100,0],[0,0,0,100]];
+  KF.trueX = cx; KF.trueY = cy; KF.pathT = 0;
+  KF.measurements = []; KF.estimates = []; KF.truePath = [];
+  KF.lastMeasure = 0; KF.interactive = false;
+  KF.kalmanGain = 0; KF.innovation = 0; KF.inPredict = true;
+}
+// 只重置协方差（调参时用，不丢轨迹）
+function resetKalmanP() {
+  KF.P = [[2500,0,0,0],[0,2500,0,0],[0,0,100,0],[0,0,0,100]];
+  KF.lastMeasure = KF.measureInterval; // 立即触发一次测量更新
+}
+
+function updateKalman(dt) {
+  if (paused) return;
+  const t = KF.pathT += dt * 0.4;
+  if (!KF.interactive) {
+    KF.trueX = W / 2 + W * 0.28 * Math.sin(t * 1.3) * Math.cos(t * 0.3);
+    KF.trueY = H / 2 + H * 0.25 * Math.sin(t * 0.7 + 1) * Math.cos(t * 0.5);
+  } else {
+    KF.trueX = mouseX; KF.trueY = mouseY;
+  }
+  KF.truePath.push({ x: KF.trueX, y: KF.trueY });
+  if (KF.truePath.length > KF.maxTrail) KF.truePath.shift();
+
+  // Predict
+  KF.inPredict = true;
+  const F = [[1,0,dt,0],[0,1,0,dt],[0,0,1,0],[0,0,0,1]];
+  const q = KF.processNoise;
+  const dt2 = dt * dt, dt3 = dt2 * dt, dt4 = dt3 * dt;
+  const Q = [[dt4/4*q, 0, dt3/2*q, 0],[0, dt4/4*q, 0, dt3/2*q],[dt3/2*q, 0, dt2*q, 0],[0, dt3/2*q, 0, dt2*q]];
+  KF.x = matMul(F, KF.x);
+  KF.P = matAdd(matMul(matMul(F, KF.P), matT(F)), Q);
+
+  // Measure + Update
+  KF.lastMeasure += dt;
+  if (KF.lastMeasure >= KF.measureInterval) {
+    KF.lastMeasure = 0; KF.inPredict = false;
+    const mx = KF.trueX + randn() * KF.measureNoise;
+    const my = KF.trueY + randn() * KF.measureNoise;
+    KF.measurements.push({ x: mx, y: my, age: 0 });
+    if (KF.measurements.length > KF.maxTrail) KF.measurements.shift();
+
+    const Hm = [[1,0,0,0],[0,1,0,0]];
+    const r = KF.measureNoise * KF.measureNoise;
+    const R = [[r, 0], [0, r]];
+    const y = matSub([[mx], [my]], matMul(Hm, KF.x));
+    const S = matAdd(matMul(matMul(Hm, KF.P), matT(Hm)), R);
+    const K = matMul(matMul(KF.P, matT(Hm)), matInv2(S));
+    KF.x = matAdd(KF.x, matMul(K, y));
+    KF.P = matMul(matSub(eye(4), matMul(K, Hm)), KF.P);
+    KF.kalmanGain = Math.sqrt(K[0][0] * K[0][0] + K[1][1] * K[1][1]);
+    KF.innovation = Math.sqrt(y[0][0] * y[0][0] + y[1][0] * y[1][0]);
+  }
+  for (const m of KF.measurements) m.age += dt;
+  KF.estimates.push({ x: KF.x[0][0], y: KF.x[1][0] });
+  if (KF.estimates.length > KF.maxTrail) KF.estimates.shift();
+}
+
+function drawKalman() {
+  // 轨迹
+  drawTrail(KF.truePath, 'rgba(100,255,180,', 0.15, 1.2);
+  drawTrail(KF.estimates, 'rgba(100,180,255,', 0.25, 1.5);
+
+  // 测量值
+  for (const m of KF.measurements) {
+    const a = Math.max(0, 0.5 - m.age * 0.15);
+    ctx.beginPath(); ctx.arc(m.x, m.y, 2.5, 0, Math.PI*2);
+    ctx.fillStyle = `rgba(255,140,100,${a})`; ctx.fill();
+  }
+
+  // 协方差椭圆
+  drawCovEllipse(KF.x[0][0], KF.x[1][0], KF.P, 2.5, 'rgba(100,180,255,0.12)', 'rgba(100,180,255,0.25)');
+
+  // 真实位置
+  ctx.beginPath(); ctx.arc(KF.trueX, KF.trueY, 5, 0, Math.PI*2);
+  ctx.fillStyle = 'rgba(100,255,180,0.8)'; ctx.fill();
+  ctx.beginPath(); ctx.arc(KF.trueX, KF.trueY, 9, 0, Math.PI*2);
+  ctx.strokeStyle = 'rgba(100,255,180,0.3)'; ctx.lineWidth = 1; ctx.stroke();
+
+  // 估计位置
+  ctx.beginPath(); ctx.arc(KF.x[0][0], KF.x[1][0], 6, 0, Math.PI*2);
+  ctx.fillStyle = 'rgba(100,180,255,0.9)'; ctx.fill();
+  ctx.beginPath(); ctx.arc(KF.x[0][0], KF.x[1][0], 13, 0, Math.PI*2);
+  ctx.strokeStyle = 'rgba(100,180,255,0.3)'; ctx.lineWidth = 1; ctx.stroke();
+
+  // 速度向量
+  const vs = 0.3;
+  ctx.beginPath(); ctx.moveTo(KF.x[0][0], KF.x[1][0]);
+  ctx.lineTo(KF.x[0][0] + KF.x[2][0]*vs, KF.x[1][0] + KF.x[3][0]*vs);
+  ctx.strokeStyle = 'rgba(100,180,255,0.4)'; ctx.lineWidth = 1.5; ctx.stroke();
+
+  // ═══ 教学标注 ═══
+  // 标签
+  drawLabel(KF.trueX, KF.trueY, '真实位置', 'rgba(100,255,180,0.7)', 10, 10, -2);
+  drawLabel(KF.x[0][0], KF.x[1][0], '我的估计', 'rgba(100,180,255,0.7)', 10, -60, -14);
+
+  // 最新测量值的标记
+  if (KF.measurements.length > 0) {
+    const lastM = KF.measurements[KF.measurements.length - 1];
+    const dx = lastM.x - KF.trueX, dy = lastM.y - KF.trueY;
+    const err = Math.sqrt(dx*dx + dy*dy);
+    if (err > 10) {
+      drawLabel(lastM.x, lastM.y, `噪声 ${err.toFixed(0)}px`, 'rgba(255,140,100,0.65)', 9, 8, -14);
+    }
+  }
+
+  // 协方差椭圆标注
+  const ex = KF.x[0][0], ey = KF.x[1][0];
+  const trPos = KF.P[0][0] + KF.P[1][1];
+  drawLabel(ex + 35, ey - 20, `不确定度: ${trPos.toFixed(0)}`, 'rgba(100,180,255,0.4)', 9, 0, 0);
+}
+
+function drawKalmanStruct() {
+  drawKalman();
+
+  // 放大协方差椭圆 (1σ, 2σ, 3σ)
+  const ex = KF.x[0][0], ey = KF.x[1][0];
+  for (let s = 1; s <= 3; s++) {
+    drawCovEllipse(ex, ey, KF.P, s, 'transparent', `rgba(255,180,100,${0.15/s})`);
+  }
+
+  // 测量噪声标注
+  if (KF.measurements.length > 0) {
+    const lastM = KF.measurements[KF.measurements.length - 1];
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath(); ctx.moveTo(lastM.x, lastM.y); ctx.lineTo(KF.trueX, KF.trueY);
+    ctx.strokeStyle = 'rgba(255,140,100,0.3)'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.setLineDash([]);
+    const midX = (lastM.x + KF.trueX) / 2, midY = (lastM.y + KF.trueY) / 2;
+    drawLabel(midX, midY, '测量误差', 'rgba(255,140,100,0.45)', 9, 4, -6);
+  }
+
+  // 公式注解
+  const sx = 60, sy = H - 160;
+  ctx.font = '11px Courier New';
+  ctx.fillStyle = 'rgba(255,180,100,0.55)';
+  ctx.fillText('预测步:  x̂ = F·x̂ (用速度向前推)', sx, sy);
+  ctx.fillText('更新步:  x̂ += K·(z − x̂) (用测量校正)', sx, sy + 18);
+  ctx.fillText('协方差:  P = F·P·Fᵀ + Q (预测变大)', sx, sy + 36);
+  ctx.fillText('        P = (I−K·H)·P (更新缩小)', sx, sy + 54);
+  ctx.fillStyle = 'rgba(255,180,100,0.4)';
+  ctx.fillText(`Kalman Gain |K| = ${KF.kalmanGain.toFixed(3)}`, sx, sy + 78);
+  ctx.fillText(`→ K 大 = 更信测量, K 小 = 更信预测`, sx, sy + 94);
+}
+
+// ══════════════════════════════════════════════════════════════
+// 2. A* 寻路
+// ══════════════════════════════════════════════════════════════
+const AS = {
+  grid: null, cols: 0, rows: 0, cellSize: 0,
+  start: null, end: null,
+  openSet: [], closedSet: null,
+  cameFrom: null, gScore: null, fScore: null,
+  path: [], running: false, done: false,
+  stepsPerFrame: 4, explored: 0,
+  drawingWall: -1, frontierNode: null,
+};
+
+function initAStar() {
+  AS.cellSize = Math.max(14, Math.min(22, Math.floor(Math.min(W / 55, H / 38))));
+  AS.cols = Math.floor(W / AS.cellSize);
+  AS.rows = Math.floor(H / AS.cellSize);
+  AS.grid = Array.from({length: AS.rows}, () => new Uint8Array(AS.cols));
+  AS.start = { c: Math.floor(AS.cols * 0.12), r: Math.floor(AS.rows * 0.5) };
+  AS.end = { c: Math.floor(AS.cols * 0.88), r: Math.floor(AS.rows * 0.5) };
+  for (let i = 0; i < 8; i++) {
+    const bx = Math.floor(Math.random() * (AS.cols - 10) + 5);
+    const by = Math.floor(Math.random() * (AS.rows - 6) + 3);
+    const bw = Math.floor(Math.random() * 6 + 3);
+    const bh = Math.floor(Math.random() * 6 + 2);
+    for (let r = by; r < Math.min(by + bh, AS.rows); r++)
+      for (let c = bx; c < Math.min(bx + bw, AS.cols); c++)
+        AS.grid[r][c] = 1;
+  }
+  for (let dr = -2; dr <= 2; dr++)
+    for (let dc = -2; dc <= 2; dc++) {
+      const sr = AS.start.r + dr, sc = AS.start.c + dc;
+      const er = AS.end.r + dr, ec = AS.end.c + dc;
+      if (sr >= 0 && sr < AS.rows && sc >= 0 && sc < AS.cols) AS.grid[sr][sc] = 0;
+      if (er >= 0 && er < AS.rows && ec >= 0 && ec < AS.cols) AS.grid[er][ec] = 0;
+    }
+  resetAStarSearch();
+}
+function resetAStarSearch() {
+  const sk = AS.start.c + ',' + AS.start.r;
+  AS.openSet = [{ c: AS.start.c, r: AS.start.r }];
+  AS.closedSet = new Set();
+  AS.cameFrom = {};
+  AS.gScore = { [sk]: 0 };
+  AS.fScore = { [sk]: astarH(AS.start, AS.end) };
+  AS.path = []; AS.running = true; AS.done = false; AS.explored = 0; AS.frontierNode = null;
+}
+function astarH(a, b) {
+  const dx = Math.abs(a.c - b.c), dy = Math.abs(a.r - b.r);
+  return dx + dy + (1.414 - 2) * Math.min(dx, dy);
+}
+function astarKey(c, r) { return c + ',' + r; }
+function astarStep() {
+  if (!AS.running || AS.openSet.length === 0) { AS.running = false; AS.done = true; return; }
+  AS.openSet.sort((a, b) => (AS.fScore[astarKey(a.c, a.r)] || 1e9) - (AS.fScore[astarKey(b.c, b.r)] || 1e9));
+  const cur = AS.openSet.shift();
+  const ck = astarKey(cur.c, cur.r);
+  AS.frontierNode = cur;
+
+  if (cur.c === AS.end.c && cur.r === AS.end.r) {
+    let k = ck; AS.path = [k];
+    while (AS.cameFrom[k]) { k = AS.cameFrom[k]; AS.path.unshift(k); }
+    AS.running = false; AS.done = true; return;
+  }
+  AS.closedSet.add(ck); AS.explored++;
+  const dirs = [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]];
+  for (const [dc, dr] of dirs) {
+    const nc = cur.c + dc, nr = cur.r + dr;
+    if (nc < 0 || nc >= AS.cols || nr < 0 || nr >= AS.rows) continue;
+    if (AS.grid[nr][nc] === 1) continue;
+    const nk = astarKey(nc, nr);
+    if (AS.closedSet.has(nk)) continue;
+    if (dc !== 0 && dr !== 0) {
+      if (AS.grid[cur.r + dr][cur.c] === 1 && AS.grid[cur.r][cur.c + dc] === 1) continue;
+    }
+    const cost = (dc !== 0 && dr !== 0) ? 1.414 : 1;
+    const tg = (AS.gScore[ck] || 0) + cost;
+    if (tg < (AS.gScore[nk] || 1e9)) {
+      AS.cameFrom[nk] = ck; AS.gScore[nk] = tg;
+      AS.fScore[nk] = tg + astarH({c: nc, r: nr}, AS.end);
+      if (!AS.openSet.some(n => n.c === nc && n.r === nr))
+        AS.openSet.push({c: nc, r: nr});
+    }
+  }
+}
+function updateAStar(dt) {
+  if (paused || !AS.running) return;
+  for (let i = 0; i < AS.stepsPerFrame; i++) astarStep();
+}
+function drawAStar() {
+  const cs = AS.cellSize;
+  // 墙壁
+  for (let r = 0; r < AS.rows; r++)
+    for (let c = 0; c < AS.cols; c++)
+      if (AS.grid[r][c] === 1) {
+        ctx.fillStyle = 'rgba(60,60,90,0.7)';
+        ctx.fillRect(c * cs, r * cs, cs - 1, cs - 1);
+      }
+  // 已探索
+  for (const k of AS.closedSet) {
+    const [c, r] = k.split(',').map(Number);
+    ctx.fillStyle = 'rgba(50,70,120,0.2)';
+    ctx.fillRect(c * cs, r * cs, cs - 1, cs - 1);
+  }
+  // 开放集
+  for (const n of AS.openSet) {
+    ctx.fillStyle = 'rgba(100,200,255,0.2)';
+    ctx.fillRect(n.c * cs, n.r * cs, cs - 1, cs - 1);
+  }
+  // 当前正在探索的节点
+  if (AS.frontierNode && AS.running) {
+    const fn = AS.frontierNode;
+    ctx.fillStyle = 'rgba(140,220,255,0.35)';
+    ctx.fillRect(fn.c * cs, fn.r * cs, cs - 1, cs - 1);
+  }
+  // 路径
+  if (AS.path.length > 1) {
+    ctx.beginPath();
+    const [pc0, pr0] = AS.path[0].split(',').map(Number);
+    ctx.moveTo(pc0 * cs + cs / 2, pr0 * cs + cs / 2);
+    for (let i = 1; i < AS.path.length; i++) {
+      const [pc, pr] = AS.path[i].split(',').map(Number);
+      ctx.lineTo(pc * cs + cs / 2, pr * cs + cs / 2);
+    }
+    ctx.strokeStyle = 'rgba(100,255,180,0.7)'; ctx.lineWidth = 3; ctx.stroke();
+    for (const k of AS.path) {
+      const [pc, pr] = k.split(',').map(Number);
+      ctx.fillStyle = 'rgba(100,255,180,0.25)';
+      ctx.fillRect(pc * cs, pr * cs, cs - 1, cs - 1);
+    }
+  }
+  // 起点终点
+  ctx.fillStyle = 'rgba(100,255,180,0.8)';
+  ctx.fillRect(AS.start.c * cs + 2, AS.start.r * cs + 2, cs - 5, cs - 5);
+  ctx.fillStyle = 'rgba(255,120,100,0.8)';
+  ctx.fillRect(AS.end.c * cs + 2, AS.end.r * cs + 2, cs - 5, cs - 5);
+  // 标签
+  drawLabel(AS.start.c * cs + cs / 2, AS.start.r * cs + cs, '起点 S', 'rgba(100,255,180,0.7)', 9, -15, 14);
+  drawLabel(AS.end.c * cs + cs / 2, AS.end.r * cs + cs, '终点 G', 'rgba(255,120,100,0.7)', 9, -15, 14);
+  // 开放集标注
+  if (AS.openSet.length > 0) {
+    const on = AS.openSet[0];
+    drawLabel(on.c * cs + cs / 2, on.r * cs + cs / 2, `待探索 (共${AS.openSet.length})`, 'rgba(100,200,255,0.4)', 9, 0, cs * 0.3);
+  }
+  // 已探索区域标注
+  if (AS.explored > 0) {
+    const arr = Array.from(AS.closedSet);
+    const midK = arr[Math.floor(arr.length / 2)];
+    if (midK) {
+      const [mc, mr] = midK.split(',').map(Number);
+      drawLabel(mc * cs + cs / 2, mr * cs + cs / 2, `已探索 ${AS.explored} 格`, 'rgba(100,140,200,0.35)', 9, 0, 0);
+    }
+  }
+  // 搜索前沿
+  if (AS.frontierNode && AS.running) {
+    const fn = AS.frontierNode;
+    const fk = astarKey(fn.c, fn.r);
+    const fv = AS.fScore[fk];
+    drawLabel(fn.c * cs + cs / 2, fn.r * cs + cs / 2, `f=${fv ? fv.toFixed(1) : '?'} 最小优先`, 'rgba(140,220,255,0.5)', 9, 0, -8);
+  }
+  // 网格线
+  ctx.strokeStyle = 'rgba(255,255,255,0.03)'; ctx.lineWidth = 0.5;
+  for (let r = 0; r <= AS.rows; r++) { ctx.beginPath(); ctx.moveTo(0, r * cs); ctx.lineTo(AS.cols * cs, r * cs); ctx.stroke(); }
+  for (let c = 0; c <= AS.cols; c++) { ctx.beginPath(); ctx.moveTo(c * cs, 0); ctx.lineTo(c * cs, AS.rows * cs); ctx.stroke(); }
+}
+function drawAStarStruct() {
+  const cs = AS.cellSize;
+  // f-score 热力图
+  let maxF = 0;
+  for (const k in AS.fScore) maxF = Math.max(maxF, AS.fScore[k]);
+  if (maxF === 0) maxF = 1;
+  for (const k of AS.closedSet) {
+    const f = AS.fScore[k] || 0;
+    const t = f / maxF;
+    const [c, r] = k.split(',').map(Number);
+    ctx.fillStyle = `hsla(${(1-t)*220},70%,50%,0.2)`;
+    ctx.fillRect(c * cs, r * cs, cs - 1, cs - 1);
+  }
+  for (const n of AS.openSet) {
+    const k = astarKey(n.c, n.r);
+    const f = AS.fScore[k] || 0;
+    const t = f / maxF;
+    ctx.fillStyle = `hsla(${(1-t)*220},70%,50%,0.3)`;
+    ctx.fillRect(n.c * cs, n.r * cs, cs - 1, cs - 1);
+  }
+  // 墙壁
+  for (let r = 0; r < AS.rows; r++)
+    for (let c = 0; c < AS.cols; c++)
+      if (AS.grid[r][c] === 1) {
+        ctx.fillStyle = 'rgba(60,60,90,0.7)';
+        ctx.fillRect(c * cs, r * cs, cs - 1, cs - 1);
+      }
+  // 路径
+  if (AS.path.length > 1) {
+    ctx.beginPath();
+    const [pc0, pr0] = AS.path[0].split(',').map(Number);
+    ctx.moveTo(pc0 * cs + cs / 2, pr0 * cs + cs / 2);
+    for (let i = 1; i < AS.path.length; i++) {
+      const [pc, pr] = AS.path[i].split(',').map(Number);
+      ctx.lineTo(pc * cs + cs / 2, pr * cs + cs / 2);
+    }
+    ctx.strokeStyle = 'rgba(100,255,180,0.8)'; ctx.lineWidth = 3; ctx.stroke();
+  }
+  // 标注 g 和 f 值
+  if (cs >= 16) {
+    ctx.font = `${Math.max(7, cs*0.28)}px Courier New`;
+    for (const k of AS.closedSet) {
+      const [c, r] = k.split(',').map(Number);
+      const g = AS.gScore[k];
+      const f = AS.fScore[k];
+      if (g !== undefined) {
+        ctx.fillStyle = 'rgba(255,180,100,0.4)';
+        ctx.fillText('g' + g.toFixed(0), c * cs + 2, r * cs + cs * 0.4);
+        ctx.fillStyle = 'rgba(100,180,255,0.4)';
+        ctx.fillText('f' + f.toFixed(0), c * cs + 2, r * cs + cs * 0.8);
+      }
+    }
+  }
+  // 起点终点
+  ctx.fillStyle = 'rgba(100,255,180,0.8)';
+  ctx.fillRect(AS.start.c * cs + 2, AS.start.r * cs + 2, cs - 5, cs - 5);
+  ctx.fillStyle = 'rgba(255,120,100,0.8)';
+  ctx.fillRect(AS.end.c * cs + 2, AS.end.r * cs + 2, cs - 5, cs - 5);
+  // 网格线
+  ctx.strokeStyle = 'rgba(255,255,255,0.04)'; ctx.lineWidth = 0.5;
+  for (let r = 0; r <= AS.rows; r++) { ctx.beginPath(); ctx.moveTo(0, r * cs); ctx.lineTo(AS.cols * cs, r * cs); ctx.stroke(); }
+  for (let c = 0; c <= AS.cols; c++) { ctx.beginPath(); ctx.moveTo(c * cs, 0); ctx.lineTo(c * cs, AS.rows * cs); ctx.stroke(); }
+  // 公式说明
+  ctx.font = '11px Courier New';
+  ctx.fillStyle = 'rgba(255,180,100,0.5)';
+  ctx.fillText('g(n) = 已走实际代价（越小越好）', W - 280, 40);
+  ctx.fillStyle = 'rgba(100,180,255,0.5)';
+  ctx.fillText('f(n) = g(n) + h(n) = 总估价', W - 280, 56);
+  ctx.fillText('热力色 = f 值（暖色 = f 大 = 优先级低）', W - 280, 76);
+}
+
+// ══════════════════════════════════════════════════════════════
+// 3. 傅里叶变换
+// ══════════════════════════════════════════════════════════════
+const FT = {
+  components: [
+    { freq: 2, amp: 1.0, active: true },
+    { freq: 5, amp: 0.7, active: true },
+    { freq: 9, amp: 0.45, active: true },
+    { freq: 14, amp: 0.3, active: true },
+    { freq: 20, amp: 0.2, active: false },
+    { freq: 28, amp: 0.15, active: false },
+    { freq: 37, amp: 0.1, active: false },
+    { freq: 50, amp: 0.08, active: false },
+  ],
+  N: 256, signal: null, spectrum: null,
+  time: 0, dirty: true, maxFreq: 64,
+};
+function initFFT() { FT.time = 0; FT.dirty = true; computeFFTData(); }
+function computeFFTData() {
+  const N = FT.N;
+  FT.signal = new Float64Array(N);
+  for (let i = 0; i < N; i++) {
+    let v = 0;
+    for (const c of FT.components)
+      if (c.active) v += c.amp * Math.sin(2 * Math.PI * c.freq * i / N);
+    FT.signal[i] = v;
+  }
+  FT.spectrum = new Float64Array(FT.maxFreq);
+  for (let k = 0; k < FT.maxFreq; k++) {
+    let re = 0, im = 0;
+    for (let n = 0; n < N; n++) {
+      const angle = -2 * Math.PI * k * n / N;
+      re += FT.signal[n] * Math.cos(angle);
+      im += FT.signal[n] * Math.sin(angle);
+    }
+    FT.spectrum[k] = Math.sqrt(re * re + im * im) / N * 2;
+  }
+  FT.dirty = false;
+}
+function updateFFT(dt) {
+  if (paused) return;
+  FT.time += dt * 80;
+  if (FT.dirty) computeFFTData();
+}
+function drawFFT() {
+  const N = FT.N;
+  const midY = H * 0.38;
+  const ampH = H * 0.22;
+  const margin = 80;
+  const sigW = W - margin * 2;
+  const offset = Math.floor(FT.time) % N;
+
+  // 分量正弦波
+  for (const comp of FT.components) {
+    if (!comp.active) continue;
+    ctx.beginPath();
+    for (let i = 0; i < N; i++) {
+      const idx = (i + offset) % N;
+      const x = margin + (i / N) * sigW;
+      const v = comp.amp * Math.sin(2 * Math.PI * comp.freq * idx / N);
+      const y = midY - v * ampH * 0.4;
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    }
+    const hue = (comp.freq / FT.maxFreq) * 280;
+    ctx.strokeStyle = `hsla(${hue},70%,60%,0.18)`;
+    ctx.lineWidth = 1; ctx.stroke();
+  }
+
+  // 合成信号
+  ctx.beginPath();
+  for (let i = 0; i < N; i++) {
+    const idx = (i + offset) % N;
+    const x = margin + (i / N) * sigW;
+    const y = midY - FT.signal[idx] * ampH * 0.4;
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  }
+  ctx.strokeStyle = 'rgba(100,180,255,0.8)'; ctx.lineWidth = 2; ctx.stroke();
+
+  // 零线
+  ctx.beginPath();
+  ctx.moveTo(margin, midY); ctx.lineTo(margin + sigW, midY);
+  ctx.strokeStyle = 'rgba(255,255,255,0.08)'; ctx.lineWidth = 0.5; ctx.stroke();
+
+  // ═══ 教学标注 ═══
+  drawLabel(margin + 10, midY - ampH * 0.45, '↓ 时域 = 信号随时间变化 (把下面选中的频率"合成"起来)', 'rgba(255,255,255,0.35)', 9, 0, 0);
+  drawLabel(margin + 10, midY + ampH * 0.45 + 14, '↑ 每个细线 = 一个频率分量的正弦波', 'rgba(255,255,255,0.25)', 8, 0, 0);
+
+  // 频谱
+  const specY = H * 0.7;
+  const specH = H * 0.18;
+  const barW = Math.max(4, (sigW / FT.maxFreq) * 0.7);
+  const barGap = sigW / FT.maxFreq;
+  let maxSpec = 0;
+  for (let k = 1; k < FT.maxFreq; k++) maxSpec = Math.max(maxSpec, FT.spectrum[k]);
+  if (maxSpec === 0) maxSpec = 1;
+
+  for (let k = 1; k < FT.maxFreq; k++) {
+    const x = margin + k * barGap;
+    const h = (FT.spectrum[k] / maxSpec) * specH;
+    const hue = (k / FT.maxFreq) * 280;
+    const isActive = FT.components.some(c => c.freq === k && c.active);
+    const alpha = isActive ? 0.85 : 0.2;
+    ctx.fillStyle = `hsla(${hue},70%,55%,${alpha})`;
+    ctx.fillRect(x - barW / 2, specY - h, barW, Math.max(1, h));
+    if (isActive && h > 5) {
+      ctx.fillStyle = `hsla(${hue},70%,70%,0.5)`;
+      ctx.shadowColor = `hsla(${hue},80%,60%,0.3)`;
+      ctx.shadowBlur = 8;
+      ctx.fillRect(x - barW / 2, specY - h, barW, Math.max(1, h));
+      ctx.shadowBlur = 0;
+    }
+  }
+  ctx.beginPath();
+  ctx.moveTo(margin, specY); ctx.lineTo(margin + sigW, specY);
+  ctx.strokeStyle = 'rgba(255,255,255,0.08)'; ctx.lineWidth = 0.5; ctx.stroke();
+
+  drawLabel(margin + 10, specY - specH - 6, '↓ 频域 = 每个柱 = 一个频率的强度 (亮柱 = 正在参与信号)', 'rgba(255,255,255,0.35)', 9, 0, 0);
+  ctx.fillStyle = 'rgba(255,255,255,0.2)';
+  ctx.font = '9px Courier New';
+  ctx.fillText('低频 →', margin, specY + 14);
+  ctx.fillText('→ 高频', margin + sigW - 48, specY + 14);
+}
+function drawFFTStruct() {
+  drawFFT();
+  const margin = 80;
+  const sigW = W - margin * 2;
+  const specY = H * 0.7;
+  const barGap = sigW / FT.maxFreq;
+
+  // 活跃分量列表
+  const cx = W - 220, cy = 80;
+  ctx.font = '10px Courier New';
+  ctx.fillStyle = 'rgba(255,180,100,0.55)';
+  ctx.fillText('活跃频率分量:', cx, cy);
+  let y = cy + 16;
+  const active = FT.components.filter(c => c.active);
+  if (active.length === 0) {
+    ctx.fillStyle = 'rgba(255,180,100,0.3)';
+    ctx.fillText('  无（点击频谱柱激活）', cx, y);
+  }
+  for (const c of active) {
+    ctx.fillStyle = 'rgba(255,180,100,0.35)';
+    ctx.fillText(`  f=${c.freq}  A=${c.amp.toFixed(2)}`, cx, y);
+    y += 14;
+  }
+  ctx.fillStyle = 'rgba(255,180,100,0.4)';
+  ctx.fillText('公式: 信号 = Σ Aᵢ·sin(2π·fᵢ·t)', cx, y + 10);
+  ctx.fillText('每个频率 = 一把"乐器"', cx, y + 26);
+
+  // 频域标注
+  ctx.font = '9px Courier New';
+  for (const c of FT.components) {
+    if (!c.active) continue;
+    const x = margin + c.freq * barGap;
+    ctx.fillStyle = 'rgba(255,180,100,0.35)';
+    ctx.fillText(`f=${c.freq}`, x + 3, specY + 28);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+// 4. 梯度下降
+// ══════════════════════════════════════════════════════════════
+const GD = {
+  particles: [], mode: 0,
+  modeNames: ['Vanilla（固定步长）', 'Momentum（加惯性防震荡）', 'Adam（自适应调整步长）'],
+  lr: 0.003,
+  xMin: -5.5, xMax: 5.5, yMin: -5.5, yMax: 5.5,
+  contourCanvas: null, contourDirty: true,
+  maxTrail: 400,
+};
+function himmelblau(x, y) { return (x*x + y - 11)**2 + (x + y*y - 7)**2; }
+function himmelblauGrad(x, y) {
+  return [4*x*(x*x+y-11)+2*(x+y*y-7), 2*(x*x+y-11)+4*y*(x+y*y-7)];
+}
+function initGradient() {
+  GD.particles = []; GD.contourDirty = true;
+  const starts = [[-4, -3], [4, 3], [-3, 4], [3, -3], [0, 0]];
+  for (const [x, y] of starts) addGDParticle(x, y);
+}
+function addGDParticle(fx, fy) {
+  GD.particles.push({
+    x: fx, y: fy, trail: [{ x: fx, y: fy }],
+    vx: 0, vy: 0, mx: 0, my: 0, vvx: 0, vvy: 0, t: 0,
+    loss: himmelblau(fx, fy), settled: false,
+  });
+}
+function funcToScreen(fx, fy) {
+  return [(fx - GD.xMin) / (GD.xMax - GD.xMin) * W, (fy - GD.yMin) / (GD.yMax - GD.yMin) * H];
+}
+function screenToFunc(sx, sy) {
+  return [GD.xMin + sx/W*(GD.xMax-GD.xMin), GD.yMin + sy/H*(GD.yMax-GD.yMin)];
+}
+function renderContour() {
+  if (!GD.contourCanvas) GD.contourCanvas = document.createElement('canvas');
+  const scale = 0.5;
+  const cw = Math.floor(W*scale), ch = Math.floor(H*scale);
+  GD.contourCanvas.width = cw; GD.contourCanvas.height = ch;
+  const cctx = GD.contourCanvas.getContext('2d');
+  const img = cctx.createImageData(cw, ch);
+  for (let py = 0; py < ch; py++) {
+    for (let px = 0; px < cw; px++) {
+      const fx = GD.xMin + (px/cw)*(GD.xMax-GD.xMin);
+      const fy = GD.yMin + (py/ch)*(GD.yMax-GD.yMin);
+      const v = himmelblau(fx, fy);
+      const t = Math.min(1, Math.log(1+v)/Math.log(300));
+      const idx = (py*cw+px)*4;
+      img.data[idx]=Math.floor(lerp(10,80,t));
+      img.data[idx+1]=Math.floor(lerp(15,30,t));
+      img.data[idx+2]=Math.floor(lerp(50,20,t));
+      img.data[idx+3]=255;
+    }
+  }
+  cctx.putImageData(img, 0, 0);
+  GD.contourDirty = false;
+}
+function updateGradient(dt) {
+  if (paused) return;
+  const lr = GD.lr;
+  const beta1=0.9, beta2=0.999, eps=1e-8;
+  for (const p of GD.particles) {
+    if (p.settled) continue;
+    p.t++;
+    const [gx, gy] = himmelblauGrad(p.x, p.y);
+    const gm = Math.sqrt(gx*gx+gy*gy);
+    if (GD.mode===0) { p.x-=lr*gx; p.y-=lr*gy; }
+    else if (GD.mode===1) { p.vx=0.9*p.vx+lr*gx; p.vy=0.9*p.vy+lr*gy; p.x-=p.vx; p.y-=p.vy; }
+    else {
+      p.mx=beta1*p.mx+(1-beta1)*gx; p.my=beta1*p.my+(1-beta1)*gy;
+      p.vvx=beta2*p.vvx+(1-beta2)*gx*gx; p.vvy=beta2*p.vvy+(1-beta2)*gy*gy;
+      const mxh=p.mx/(1-Math.pow(beta1,p.t)), myh=p.my/(1-Math.pow(beta1,p.t));
+      const vxh=p.vvx/(1-Math.pow(beta2,p.t)), vyh=p.vvy/(1-Math.pow(beta2,p.t));
+      p.x-=lr*10*mxh/(Math.sqrt(vxh)+eps); p.y-=lr*10*myh/(Math.sqrt(vyh)+eps);
+    }
+    p.x=clamp(p.x,GD.xMin+0.1,GD.xMax-0.1);
+    p.y=clamp(p.y,GD.yMin+0.1,GD.yMax-0.1);
+    p.loss=himmelblau(p.x,p.y);
+    p.trail.push({x:p.x,y:p.y});
+    if(p.trail.length>GD.maxTrail) p.trail.shift();
+    if(gm<0.01) p.settled=true;
+  }
+}
+function drawGradient() {
+  if (GD.contourDirty) renderContour();
+  ctx.drawImage(GD.contourCanvas, 0, 0, W, H);
+
+  // 等高线点
+  const levels = [0.5, 2, 5, 10, 25, 50, 100, 200];
+  ctx.lineWidth = 0.5;
+  for (const level of levels) {
+    ctx.strokeStyle = `rgba(255,255,255,${level < 50 ? 0.07 : 0.03})`;
+    const step = 5;
+    for (let sy = 0; sy < H; sy += step) {
+      for (let sx = 0; sx < W; sx += step) {
+        const [fx1, fy1] = screenToFunc(sx, sy);
+        const v1 = himmelblau(fx1, fy1);
+        const [fx2, fy2] = screenToFunc(sx + step, sy);
+        const v2 = himmelblau(fx2, fy2);
+        const [fx3, fy3] = screenToFunc(sx, sy + step);
+        const v3 = himmelblau(fx3, fy3);
+        if ((v1 < level) !== (v2 < level)) { ctx.beginPath(); ctx.arc(sx + step*(level-v1)/(v2-v1), sy, 0.5, 0, Math.PI*2); ctx.fill(); }
+        if ((v1 < level) !== (v3 < level)) { ctx.beginPath(); ctx.arc(sx, sy + step*(level-v1)/(v3-v1), 0.5, 0, Math.PI*2); ctx.fill(); }
+      }
+    }
+  }
+
+  const colors = ['rgba(100,220,255,','rgba(255,140,180,','rgba(180,255,140,','rgba(255,220,100,','rgba(200,160,255,'];
+  for (let pi = 0; pi < GD.particles.length; pi++) {
+    const p = GD.particles[pi]; const col = colors[pi % colors.length];
+    if (p.trail.length > 1) {
+      for (let i = 1; i < p.trail.length; i++) {
+        const a = (i/p.trail.length)*0.5;
+        const [x1, y1] = funcToScreen(p.trail[i-1].x, p.trail[i-1].y);
+        const [x2, y2] = funcToScreen(p.trail[i].x, p.trail[i].y);
+        ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
+        ctx.strokeStyle = col + a.toFixed(3)+')'; ctx.lineWidth = 1.5; ctx.stroke();
+      }
+    }
+    const [px, py] = funcToScreen(p.x, p.y);
+    ctx.beginPath(); ctx.arc(px, py, p.settled ? 4 : 5, 0, Math.PI*2);
+    ctx.fillStyle = col + '0.9)'; ctx.fill();
+    if (!p.settled) {
+      ctx.beginPath(); ctx.arc(px, py, 11, 0, Math.PI*2);
+      ctx.strokeStyle = col + '0.2)'; ctx.lineWidth = 1; ctx.stroke();
+    }
+  }
+
+  // ═══ 教学标注 ═══
+  const minima = [[3, 2], [-2.805, 3.131], [-3.779, -3.283], [3.584, -1.848]];
+  const mnames = ['山谷 1', '山谷 2', '山谷 3', '山谷 4'];
+  for (let i = 0; i < minima.length; i++) {
+    const [mx, my] = minima[i];
+    const [sx, sy] = funcToScreen(mx, my);
+    ctx.beginPath(); ctx.arc(sx, sy, 5, 0, Math.PI*2);
+    ctx.fillStyle = 'rgba(255,255,255,0.25)'; ctx.fill();
+    drawLabel(sx, sy, mnames[i], 'rgba(255,255,255,0.35)', 9, 8, 3);
+  }
+  // 底部说明
+  drawLabel(60, H - 20, '每个粒子从不同起点出发 → 往最陡下山方向走 → 可能到达不同山谷', 'rgba(255,255,255,0.2)', 9, 0, 0);
+}
+function drawGradientStruct() {
+  if (GD.contourDirty) renderContour();
+  ctx.drawImage(GD.contourCanvas, 0, 0, W, H);
+
+  // 梯度向量场
+  const step = 36;
+  ctx.lineWidth = 1;
+  for (let sy = step; sy < H; sy += step) {
+    for (let sx = step; sx < W; sx += step) {
+      const [fx, fy] = screenToFunc(sx, sy);
+      const [gx, gy] = himmelblauGrad(fx, fy);
+      const mag = Math.sqrt(gx*gx+gy*gy);
+      if (mag < 0.01) continue;
+      const scale = Math.min(14, 180/mag);
+      const nx = -gx/mag*scale, ny = -gy/mag*scale;
+      const alpha = Math.min(0.35, mag*0.004);
+      ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(sx+nx, sy+ny);
+      ctx.strokeStyle = `rgba(255,180,100,${alpha})`; ctx.stroke();
+      const ax = sx+nx, ay = sy+ny; const ang = Math.atan2(ny, nx);
+      ctx.beginPath(); ctx.moveTo(ax, ay);
+      ctx.lineTo(ax-4*Math.cos(ang-0.4), ay-4*Math.sin(ang-0.4));
+      ctx.moveTo(ax, ay);
+      ctx.lineTo(ax-4*Math.cos(ang+0.4), ay-4*Math.sin(ang+0.4));
+      ctx.stroke();
+    }
+  }
+
+  // 粒子 + 轨迹
+  const colors = ['rgba(100,220,255,','rgba(255,140,180,','rgba(180,255,140,','rgba(255,220,100,','rgba(200,160,255,'];
+  for (let pi = 0; pi < GD.particles.length; pi++) {
+    const p = GD.particles[pi]; const col = colors[pi % colors.length];
+    if (p.trail.length > 1) {
+      for (let i = 1; i < p.trail.length; i++) {
+        const a = (i/p.trail.length)*0.5;
+        const [x1, y1] = funcToScreen(p.trail[i-1].x, p.trail[i-1].y);
+        const [x2, y2] = funcToScreen(p.trail[i].x, p.trail[i].y);
+        ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
+        ctx.strokeStyle = col + a.toFixed(3)+')'; ctx.lineWidth = 1.5; ctx.stroke();
+      }
+    }
+    const [px, py] = funcToScreen(p.x, p.y);
+    ctx.beginPath(); ctx.arc(px, py, 5, 0, Math.PI*2);
+    ctx.fillStyle = col + '0.9)'; ctx.fill();
+  }
+
+  // 标注
+  ctx.font = '11px Courier New';
+  ctx.fillStyle = 'rgba(255,180,100,0.55)';
+  ctx.fillText('橙色箭头 = 负梯度方向 −∇f', 60, H - 85);
+  ctx.fillText('每个箭头都指向"下山"的最陡方向', 60, H - 68);
+  ctx.fillText(`优化器: ${GD.modeNames[GD.mode]}  lr=${GD.lr}`, 60, H - 48);
+  const minLoss = GD.particles.length > 0 ? Math.min(...GD.particles.map(p => p.loss)) : 0;
+  ctx.fillText(`当前最低 loss: ${minLoss.toFixed(2)}`, 60, H - 32);
+}
+
+// ══════════════════════════════════════════════════════════════
+// 5. K 均值聚类
+// ══════════════════════════════════════════════════════════════
+const KM = {
+  points: [], k: 5,
+  centroids: [], assignments: [],
+  step: 0, iteration: 0, converged: false,
+  autoPlay: false, stepTimer: 0, stepInterval: 0.6,
+  prevCentroids: [], // for showing movement arrows
+  clusterColors: [
+    [100,180,255],[255,140,160],[140,255,180],
+    [255,210,100],[200,160,255],[255,180,120],
+    [120,255,220],[255,130,200],
+  ],
+};
+function initKMeans() {
+  KM.points = [];
+  KM.prevCentroids = [];
+  const nClusters = 5;
+  const spread = Math.min(W, H) * 0.07;
+  const margin = Math.min(W, H) * 0.2;
+  const centers = [];
+  for (let i = 0; i < nClusters; i++) {
+    centers.push([margin + Math.random()*(W-margin*2), margin + Math.random()*(H-margin*2)]);
+  }
+  for (const [cx, cy] of centers) {
+    const nPts = 20 + Math.floor(Math.random()*20);
+    for (let i = 0; i < nPts; i++) {
+      KM.points.push({x: cx+randn()*spread, y: cy+randn()*spread});
+    }
+  }
+  const shuffled = [...Array(KM.points.length).keys()].sort(() => Math.random()-0.5);
+  KM.centroids = [];
+  for (let i = 0; i < KM.k; i++) {
+    const p = KM.points[shuffled[i]];
+    KM.centroids.push({x: p.x, y: p.y});
+  }
+  KM.assignments = new Array(KM.points.length).fill(-1);
+  KM.step = 0; KM.iteration = 0; KM.converged = false;
+  KM.autoPlay = false; KM.stepTimer = 0;
+}
+function kmeansAssign() {
+  let changed = false;
+  for (let i = 0; i < KM.points.length; i++) {
+    let minD = Infinity, minK = 0;
+    for (let k = 0; k < KM.k; k++) {
+      const dx = KM.points[i].x - KM.centroids[k].x;
+      const dy = KM.points[i].y - KM.centroids[k].y;
+      const d = dx*dx+dy*dy;
+      if (d < minD) { minD = d; minK = k; }
+    }
+    if (KM.assignments[i] !== minK) { KM.assignments[i] = minK; changed = true; }
+  }
+  return changed;
+}
+function kmeansUpdate() {
+  KM.prevCentroids = KM.centroids.map(c => ({x: c.x, y: c.y}));
+  for (let k = 0; k < KM.k; k++) {
+    let sx = 0, sy = 0, count = 0;
+    for (let i = 0; i < KM.points.length; i++) {
+      if (KM.assignments[i] === k) { sx += KM.points[i].x; sy += KM.points[i].y; count++; }
+    }
+    if (count > 0) { KM.centroids[k].x = sx / count; KM.centroids[k].y = sy / count; }
+  }
+}
+function kmeansDoStep() {
+  if (KM.converged) return;
+  if (KM.step === 0) {
+    const changed = kmeansAssign();
+    if (!changed && KM.iteration > 0) { KM.converged = true; return; }
+    KM.step = 1;
+  } else {
+    kmeansUpdate();
+    KM.step = 0; KM.iteration++;
+  }
+}
+function updateKMeans(dt) {
+  if (paused || KM.converged) return;
+  if (KM.autoPlay) {
+    KM.stepTimer += dt;
+    if (KM.stepTimer >= KM.stepInterval) { KM.stepTimer = 0; kmeansDoStep(); }
+  }
+}
+function drawKMeans() {
+  // Voronoi 区域
+  if (KM.iteration > 0) {
+    const step = 10;
+    for (let sy = 0; sy < H; sy += step) {
+      for (let sx = 0; sx < W; sx += step) {
+        let minD = Infinity, minK = 0;
+        for (let k = 0; k < KM.k; k++) {
+          const dx = sx - KM.centroids[k].x, dy = sy - KM.centroids[k].y;
+          const d = dx*dx+dy*dy;
+          if (d < minD) { minD = d; minK = k; }
+        }
+        const c = KM.clusterColors[minK % KM.clusterColors.length];
+        ctx.fillStyle = `rgba(${c[0]},${c[1]},${c[2]},0.03)`;
+        ctx.fillRect(sx, sy, step, step);
+      }
+    }
+  }
+
+  // 数据点
+  for (let i = 0; i < KM.points.length; i++) {
+    const p = KM.points[i]; const k = KM.assignments[i];
+    const c = k >= 0 ? KM.clusterColors[k % KM.clusterColors.length] : [120,120,140];
+    ctx.beginPath(); ctx.arc(p.x, p.y, 3.5, 0, Math.PI*2);
+    ctx.fillStyle = `rgba(${c[0]},${c[1]},${c[2]},0.6)`; ctx.fill();
+  }
+
+  // 质心位移箭头
+  for (let k = 0; k < KM.k; k++) {
+    if (KM.prevCentroids[k]) {
+      const prev = KM.prevCentroids[k];
+      const cen = KM.centroids[k];
+      const dx = cen.x - prev.x, dy = cen.y - prev.y;
+      if (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5) {
+        ctx.beginPath();
+        ctx.moveTo(prev.x, prev.y); ctx.lineTo(cen.x - dx*0.2, cen.y - dy*0.2);
+        ctx.strokeStyle = `rgba(255,180,100,0.2)`;
+        ctx.lineWidth = 1; ctx.setLineDash([3, 3]); ctx.stroke(); ctx.setLineDash([]);
+      }
+    }
+  }
+
+  // 质心
+  for (let k = 0; k < KM.k; k++) {
+    const c = KM.clusterColors[k % KM.clusterColors.length];
+    const cen = KM.centroids[k];
+    ctx.beginPath(); ctx.arc(cen.x, cen.y, 18, 0, Math.PI*2);
+    ctx.fillStyle = `rgba(${c[0]},${c[1]},${c[2]},0.08)`; ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = `rgba(${c[0]},${c[1]},${c[2]},0.85)`;
+    ctx.beginPath();
+    ctx.moveTo(cen.x-8, cen.y); ctx.lineTo(cen.x+8, cen.y);
+    ctx.moveTo(cen.x, cen.y-8); ctx.lineTo(cen.x, cen.y+8);
+    ctx.stroke();
+    ctx.beginPath(); ctx.arc(cen.x, cen.y, 10, 0, Math.PI*2);
+    ctx.strokeStyle = `rgba(${c[0]},${c[1]},${c[2]},0.4)`; ctx.lineWidth = 1; ctx.stroke();
+  }
+
+  // ═══ 教学标注 ═══
+  // 选一个质心标注
+  if (KM.iteration >= 0 && KM.centroids.length > 0) {
+    const midK = KM.centroids[0];
+    drawLabel(midK.x, midK.y, `质心 ${KM.k} 个`, 'rgba(255,255,255,0.35)', 9, 14, -14);
+  }
+}
+function drawKMeansStruct() {
+  // Voronoi 边界
+  const step = 4;
+  for (let sy = 0; sy < H; sy += step) {
+    for (let sx = 0; sx < W; sx += step) {
+      let minD1 = Infinity, minD2 = Infinity;
+      for (let k = 0; k < KM.k; k++) {
+        const dx = sx - KM.centroids[k].x, dy = sy - KM.centroids[k].y;
+        const d = Math.sqrt(dx*dx+dy*dy);
+        if (d < minD1) { minD2 = minD1; minD1 = d; }
+        else if (d < minD2) { minD2 = d; }
+      }
+      if (Math.abs(minD1 - minD2) < 4) {
+        ctx.fillStyle = 'rgba(255,180,100,0.18)';
+        ctx.fillRect(sx, sy, step, step);
+      }
+    }
+  }
+
+  // 距离线
+  for (let i = 0; i < KM.points.length; i++) {
+    const p = KM.points[i]; const k = KM.assignments[i];
+    if (k < 0) continue;
+    const cen = KM.centroids[k];
+    const c = KM.clusterColors[k % KM.clusterColors.length];
+    ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(cen.x, cen.y);
+    ctx.strokeStyle = `rgba(${c[0]},${c[1]},${c[2]},0.05)`; ctx.lineWidth = 0.5; ctx.stroke();
+  }
+
+  // 数据点和质心
+  drawKMeans();
+
+  // 统计
+  ctx.font = '11px Courier New';
+  ctx.fillStyle = 'rgba(255,180,100,0.5)';
+  let totalVar = 0;
+  for (let k = 0; k < KM.k; k++) {
+    let sumSq = 0, count = 0;
+    for (let i = 0; i < KM.points.length; i++) {
+      if (KM.assignments[i] === k) {
+        const dx = KM.points[i].x - KM.centroids[k].x;
+        const dy = KM.points[i].y - KM.centroids[k].y;
+        sumSq += dx*dx + dy*dy; count++;
+      }
+    }
+    totalVar += sumSq;
+  }
+  ctx.fillText(`WCSS (簇内平方和): ${totalVar.toFixed(0)}  ← 越小越好`, 60, H - 55);
+  ctx.fillText(`迭代轮数: ${KM.iteration}  |  K = ${KM.k}  |  点 = ${KM.points.length}`, 60, H - 40);
+  ctx.fillText('橙线 = Voronoi 分割线 (每个点到两边距离相等)', 60, H - 24);
+}
+
+// ══════════════════════════════════════════════════════════════
+// 主循环 & UI
+// ══════════════════════════════════════════════════════════════
+function getStepStatus(algoIdx) {
+  switch (algoIdx) {
+    case 0: return KF.inPredict ? '🏃 预测步：根据速度推测目标位置（椭圆变大 = 不确定度↑）' : '⚖️ 更新步：用新测量值校正估计（椭圆缩小 = 不确定度↓）';
+    case 1:
+      if (AS.done && AS.path.length > 0) return '✅ 找到最短路径！绿线 = 从 S 到 G 的最优路线';
+      if (AS.done && AS.path.length === 0) return '❌ 无路可达：所有可达点都已探索完毕';
+      return `🔍 搜索中：每次展开 f=g+h 最小的节点 · 已探索 ${AS.explored} 格`;
+    case 2: return `📶 时域波形 = ${FT.components.filter(c=>c.active).length} 个正弦波合成 · 点击频谱柱开关频率`;
+    case 3: return `🚶 粒子沿梯度下山中 · 第 ${GD.particles.length} 个粒子 · 优化器: ${GD.modeNames[GD.mode]}`;
+    case 4:
+      if (KM.converged) return '✅ 收敛！质心不再移动，聚类完成';
+      return `🔄 ${['E 步：分配点到最近质心','M 步：更新质心到簇均值'][KM.step]}` + (KM.iteration > 0 ? ` · 第 ${KM.iteration} 轮` : ' · 按 Space 开始');
+    default: return '';
+  }
+}
+
+function switchAlgo(idx) {
+  if (idx === currentAlgo) return;
+  currentAlgo = idx;
+  paused = false; showStruct = false; algoTime = 0;
+  document.querySelectorAll('.mode-btn').forEach((btn, i) => btn.classList.toggle('active', i === idx));
+  const a = ALGOS[idx];
+  document.getElementById('title').textContent = a.titleShort;
+  document.getElementById('subtitle').textContent = a.subtitle;
+  document.getElementById('hint').textContent = a.hint;
+  document.getElementById('hp-title').textContent = a.title;
+  document.getElementById('hp-desc').textContent = a.desc;
+  document.getElementById('hp-analogy').textContent = a.analogy;
+  document.getElementById('hp-formula').textContent = a.formula;
+  document.getElementById('hp-hint').textContent = a.hint;
+  document.getElementById('hp-refs').innerHTML = a.refs.map(r => `<div class="hp-ref">${r}</div>`).join('');
+  updateLayerIndicator();
+  updateAlgoCtrl();
+  initCurrentAlgo();
+  renderLegend(idx);
+  showLegendBriefly();
+}
+function initCurrentAlgo() {
+  switch (currentAlgo) {
+    case 0: initKalman(); break;
+    case 1: initAStar(); break;
+    case 2: initFFT(); break;
+    case 3: initGradient(); break;
+    case 4: initKMeans(); break;
+  }
+}
+function updateAlgoCtrl() {
+  const ctrl = document.getElementById('algo-ctrl');
+  const kfPanel = document.getElementById('kf-params');
+
+  // Hide kf-params by default
+  kfPanel.classList.add('hidden');
+
+  if (currentAlgo === 0) {
+    ctrl.innerHTML = '';
+    kfPanel.classList.remove('hidden');
+    kfPanel.innerHTML = `
+      <div id="kf-params-title">⚙ 参数调节</div>
+      <div id="param-panel">
+        <div class="param-row"><label>测量噪声 σₘ</label>
+          <input type="range" id="kf-r" min="5" max="200" value="${KF.measureNoise}" step="1">
+          <span class="param-val" id="kf-rv">${KF.measureNoise}</span>
+        </div>
+        <div class="param-row"><label>过程噪声 σₚ</label>
+          <input type="range" id="kf-q" min="0.05" max="10" value="${KF.processNoise}" step="0.05">
+          <span class="param-val" id="kf-qv">${KF.processNoise.toFixed(2)}</span>
+        </div>
+        <div class="param-row"><label>测量频率</label>
+          <input type="range" id="kf-mi" min="0.02" max="0.5" value="${KF.measureInterval}" step="0.01">
+          <span class="param-val" id="kf-miv">${KF.measureInterval.toFixed(2)}s</span>
+        </div>
+        <div id="param-tip">💡 σₚ↑ → 跟踪更快但更抖<br>💡 σₘ↑ → 更平滑但更滞后</div>
+      </div>`;
+    document.getElementById('kf-r').addEventListener('input', function() {
+      KF.measureNoise = parseFloat(this.value);
+      document.getElementById('kf-rv').textContent = KF.measureNoise;
+      resetKalmanP(); showLegendBriefly();
+    });
+    document.getElementById('kf-q').addEventListener('input', function() {
+      KF.processNoise = parseFloat(this.value);
+      document.getElementById('kf-qv').textContent = KF.processNoise.toFixed(2);
+      resetKalmanP(); showLegendBriefly();
+    });
+    document.getElementById('kf-mi').addEventListener('input', function() {
+      KF.measureInterval = parseFloat(this.value);
+      document.getElementById('kf-miv').textContent = KF.measureInterval.toFixed(2) + 's';
+      resetKalmanP(); showLegendBriefly();
+    });
+  } else if (currentAlgo === 3) {
+    ctrl.innerHTML = `
+      <button class="ctrl-btn${GD.mode===0?' on':''}" data-gd="0">1 Vanilla</button>
+      <button class="ctrl-btn${GD.mode===1?' on':''}" data-gd="1">2 Momentum</button>
+      <button class="ctrl-btn${GD.mode===2?' on':''}" data-gd="2">3 Adam</button>`;
+    ctrl.querySelectorAll('[data-gd]').forEach(btn => btn.addEventListener('click', () => {
+      GD.mode = parseInt(btn.dataset.gd); initGradient(); updateAlgoCtrl(); showLegendBriefly();
+    }));
+  } else if (currentAlgo === 4) {
+    ctrl.innerHTML = `
+      <button class="ctrl-btn${KM.autoPlay?' on':''}" id="km-auto">▶ Auto</button>
+      <button class="ctrl-btn" id="km-step">Step ▸</button>`;
+    document.getElementById('km-auto').addEventListener('click', () => {
+      KM.autoPlay = !KM.autoPlay;
+      document.getElementById('km-auto').classList.toggle('on', KM.autoPlay);
+    });
+    document.getElementById('km-step').addEventListener('click', () => { kmeansDoStep(); });
+  } else {
+    ctrl.innerHTML = '';
+  }
+}
+function updateLayerIndicator() {
+  const dot = document.getElementById('layer-dot');
+  const label = document.getElementById('layer-label');
+  if (showStruct) {
+    dot.style.background = 'rgba(255,180,100,0.8)'; dot.style.boxShadow = '0 0 8px rgba(255,180,100,0.4)';
+    label.textContent = '教学层'; label.classList.add('structure');
+  } else {
+    dot.style.background = 'rgba(140,200,255,0.8)'; dot.style.boxShadow = '0 0 8px rgba(140,200,255,0.4)';
+    label.textContent = '表象'; label.classList.remove('structure');
+  }
+  const li = document.getElementById('layer-indicator'); li.classList.add('visible');
+  clearTimeout(li._timer); li._timer = setTimeout(() => li.classList.remove('visible'), 1500);
+}
+function showLegendBriefly() {
+  legendVisible = true; legendTimer = 0;
+  document.getElementById('legend').classList.remove('hidden');
+  document.getElementById('step-status').classList.remove('hidden');
+  if (currentAlgo === 0) document.getElementById('kf-params').classList.remove('hidden');
+}
+
+function updateInfo() {
+  const el = document.getElementById('info');
+  let text = `FPS: ${fps}`;
+  switch (currentAlgo) {
+    case 0:
+      text += `\nKalman Gain: ${KF.kalmanGain.toFixed(3)}`;
+      text += `\n创新 |y|: ${KF.innovation.toFixed(1)}`;
+      text += `\n不确定度 tr(P): ${(KF.P[0][0]+KF.P[1][1]).toFixed(0)}`;
+      break;
+    case 1:
+      text += `\n已探索: ${AS.explored}`;
+      text += `\n待探索: ${AS.openSet.length}`;
+      text += `\n路径长度: ${AS.path.length}`;
+      text += `\n${AS.done ? (AS.path.length > 0 ? '✅ 已找到!' : '❌ 无路可达') : '搜索中…'}`;
+      break;
+    case 2:
+      text += `\nN: ${FT.N}`;
+      text += `\n活跃频率: ${FT.components.filter(c => c.active).length}/${FT.components.length}`;
+      break;
+    case 3:
+      if (GD.particles.length > 0) {
+        text += `\n粒子: ${GD.particles.length}`;
+        text += `\n最低 loss: ${Math.min(...GD.particles.map(p => p.loss)).toFixed(2)}`;
+        text += `\n${GD.modeNames[GD.mode]}`;
+      }
+      break;
+    case 4:
+      text += `\n数据点: ${KM.points.length}`;
+      text += `\nK: ${KM.k}`;
+      text += `\n迭代: ${KM.iteration}`;
+      text += `\n${KM.converged ? '✅ 已收敛' : '运行中'}`;
+      break;
+  }
+  el.innerText = text;
+}
+
+function animate(ts) {
+  const dt = Math.min((ts - lastTime) / 1000, 0.05);
+  lastTime = ts;
+  algoTime += dt;
+  fpsCount++; fpsTime += dt;
+  if (fpsTime >= 0.5) { fps = Math.round(fpsCount / fpsTime); fpsCount = 0; fpsTime = 0; }
+
+  ctx.clearRect(0, 0, W, H);
+
+  if (showStruct) {
+    switch (currentAlgo) {
+      case 0: updateKalman(dt); drawKalmanStruct(); break;
+      case 1: updateAStar(dt); drawAStarStruct(); break;
+      case 2: updateFFT(dt); drawFFTStruct(); break;
+      case 3: updateGradient(dt); drawGradientStruct(); break;
+      case 4: updateKMeans(dt); drawKMeansStruct(); break;
+    }
+  } else {
+    switch (currentAlgo) {
+      case 0: updateKalman(dt); drawKalman(); break;
+      case 1: updateAStar(dt); drawAStar(); break;
+      case 2: updateFFT(dt); drawFFT(); break;
+      case 3: updateGradient(dt); drawGradient(); break;
+      case 4: updateKMeans(dt); drawKMeans(); break;
+    }
+  }
+
+  // 步骤状态
+  document.getElementById('step-status').textContent = getStepStatus(currentAlgo);
+
+  // 图例自动渐隐
+  legendTimer += dt;
+  if (legendVisible && legendTimer > 8) {
+    legendVisible = false;
+    document.getElementById('legend').classList.add('hidden');
+    document.getElementById('step-status').classList.add('hidden');
+    document.getElementById('kf-params').classList.add('hidden');
+  }
+
+  updateInfo();
+  requestAnimationFrame(animate);
+}
+
+// ── 事件 ──────────────────────────────────────────────────────
+document.querySelectorAll('.mode-btn').forEach(btn => {
+  btn.addEventListener('click', () => switchAlgo(parseInt(btn.dataset.algo)));
+});
+
+const helpToggle = document.getElementById('help-toggle');
+const helpPanel = document.getElementById('help-panel');
+helpToggle.addEventListener('click', () => {
+  helpPanel.classList.toggle('visible'); helpToggle.classList.toggle('open');
+});
+
+canvas.addEventListener('mousemove', (e) => {
+  mouseX = e.clientX; mouseY = e.clientY; mouseInCanvas = true;
+  if (currentAlgo === 0) KF.interactive = true;
+  if (currentAlgo === 1 && mouseDown) {
+    const c = Math.floor(e.clientX/AS.cellSize);
+    const r = Math.floor(e.clientY/AS.cellSize);
+    if (r>=0 && r<AS.rows && c>=0 && c<AS.cols) { AS.grid[r][c] = AS.drawingWall; resetAStarSearch(); }
+  }
+  showLegendBriefly();
+});
+canvas.addEventListener('mouseleave', () => { mouseInCanvas = false; if (currentAlgo === 0) KF.interactive = false; });
+canvas.addEventListener('mousedown', (e) => {
+  mouseDown = true; showLegendBriefly();
+  const x = e.clientX, y = e.clientY;
+
+  if (currentAlgo === 1) {
+    const c = Math.floor(x/AS.cellSize), r = Math.floor(y/AS.cellSize);
+    if (r>=0 && r<AS.rows && c>=0 && c<AS.cols) {
+      if (e.shiftKey) {
+        if (!AS._setEnd) { AS.start = {c, r}; AS._setEnd = true; }
+        else { AS.end = {c, r}; AS._setEnd = false; }
+        resetAStarSearch();
+      } else if (e.button === 2) { AS.drawingWall = 0; AS.grid[r][c] = 0; resetAStarSearch(); }
+      else { AS.drawingWall = AS.grid[r][c]===1 ? 0 : 1; AS.grid[r][c] = AS.drawingWall; resetAStarSearch(); }
+    }
+  } else if (currentAlgo === 2) {
+    const margin = 80; const sigW = W-margin*2; const specY = H*0.7;
+    const barGap = sigW / FT.maxFreq;
+    if (y > specY-H*0.18-10 && y < specY+30) {
+      const k = Math.round((x - margin) / barGap);
+      if (k >= 1 && k < FT.maxFreq) {
+        const comp = FT.components.find(c => c.freq === k);
+        if (comp) comp.active = !comp.active;
+        else FT.components.push({ freq: k, amp: 0.3+Math.random()*0.4, active: true });
+        FT.dirty = true;
+      }
+    }
+  } else if (currentAlgo === 3) {
+    const [fx, fy] = screenToFunc(x, y); addGDParticle(fx, fy);
+  } else if (currentAlgo === 4) {
+    KM.points.push({ x, y }); KM.assignments.push(-1);
+  }
+});
+canvas.addEventListener('mouseup', () => { mouseDown = false; });
+canvas.addEventListener('contextmenu', (e) => { if (currentAlgo===1) e.preventDefault(); });
+
+document.addEventListener('keydown', (e) => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  const key = e.key.toLowerCase();
+  switch (key) {
+    case '1': switchAlgo(0); break;
+    case '2': switchAlgo(1); break;
+    case '3': switchAlgo(2); break;
+    case '4': switchAlgo(3); break;
+    case '5': switchAlgo(4); break;
+    case 'l': showStruct = !showStruct; updateLayerIndicator(); showLegendBriefly(); break;
+    case ' ':
+      e.preventDefault();
+      if (currentAlgo === 4) {
+        if (e.shiftKey) {
+          KM.autoPlay = !KM.autoPlay;
+          const autoBtn = document.getElementById('km-auto');
+          if (autoBtn) autoBtn.classList.toggle('on', KM.autoPlay);
+        } else { kmeansDoStep(); }
+      } else { paused = !paused; }
+      break;
+    case 'r': initCurrentAlgo(); updateAlgoCtrl(); showLegendBriefly(); break;
+    case '?': helpPanel.classList.toggle('visible'); helpToggle.classList.toggle('open'); break;
+  }
+});
+
+// Touch
+canvas.addEventListener('touchstart', (e) => {
+  e.preventDefault(); showLegendBriefly();
+  const t = e.touches[0];
+  mouseX = t.clientX; mouseY = t.clientY; mouseDown = true; mouseInCanvas = true;
+  if (currentAlgo===0) KF.interactive = true;
+  if (currentAlgo===1) {
+    const c = Math.floor(t.clientX/AS.cellSize), r = Math.floor(t.clientY/AS.cellSize);
+    if (r>=0 && r<AS.rows && c>=0 && c<AS.cols) { AS.drawingWall = AS.grid[r][c]===1?0:1; AS.grid[r][c]=AS.drawingWall; resetAStarSearch(); }
+  } else if (currentAlgo===3) { const [fx,fy] = screenToFunc(t.clientX,t.clientY); addGDParticle(fx,fy); }
+  else if (currentAlgo===4) { KM.points.push({x:t.clientX,y:t.clientY}); KM.assignments.push(-1); }
+}, { passive: false });
+canvas.addEventListener('touchmove', (e) => {
+  e.preventDefault();
+  const t = e.touches[0]; mouseX = t.clientX; mouseY = t.clientY;
+  if (currentAlgo===1 && mouseDown) {
+    const c = Math.floor(t.clientX/AS.cellSize), r = Math.floor(t.clientY/AS.cellSize);
+    if (r>=0 && r<AS.rows && c>=0 && c<AS.cols) { AS.grid[r][c] = AS.drawingWall; resetAStarSearch(); }
+  }
+}, { passive: false });
+canvas.addEventListener('touchend', () => { mouseDown = false; if (currentAlgo===0) KF.interactive = false; });
+
+// ── 启动 ────────────────────────────────────────────────────
+switchAlgo(0); initCurrentAlgo();
+requestAnimationFrame(animate);
+console.log('%c◈ 算法之美 %cclassic algorithms — 教学版',
+  'font-size:1.4em;color:#aaccff', 'color:#aaa;');
+console.log('%c1-5 切换算法 · L 表象/教学层 · ? 帮助（含类比） · R 重置',
+  'color:#666;');
+</script>
+</body>
+</html>
